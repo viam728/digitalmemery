@@ -36,3 +36,5 @@ desktop.ini
 .vscode/
 *.swp
 *~
+*.tsbuildinfo
+frontend/vite.config.d.ts
