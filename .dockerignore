@@ -1,0 +1,20 @@
+# 构建上下文排除项（保持镜像精简，且不把密钥/本地数据带进镜像）
+
+# 依赖与构建产物
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+
+# 本地数据目录（store.json、uploads、向量索引）
+data
+
+# 机密：backend/.env 含真实 GLM 密钥，绝不 COPY 进镜像
+backend/.env
+
+# 本地编译产物
+**/*.exe
+backend/jasperlee
+
+# 版本控制与文档
+.git
+docs

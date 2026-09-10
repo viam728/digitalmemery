@@ -1,0 +1,38 @@
+# ---- 机密（绝不提交）----
+backend/.env
+*.local.env
+# 例外：示例配置可以提交
+!backend/.env.example
+!.env.example
+
+# ---- 构建产物 ----
+backend/*.exe
+backend/*.exe~
+backend/jasperlee
+frontend/dist/
+frontend/build/
+
+# ---- 依赖（体积大、可重装）----
+**/node_modules/
+
+# ---- 运行时数据（本地生成、含个人信息）----
+data/store.json
+data/rag_index.json
+data/uploads/*
+!data/uploads/.gitkeep
+data/inbox/*
+!data/inbox/.gitkeep
+*.log
+/tmp/
+
+# ---- 个人简历 PDF（含电话/邮箱，勿公开提交）----
+data/uploads/*.pdf
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~

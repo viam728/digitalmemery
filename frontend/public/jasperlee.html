@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>李俊锋 JasperLee · 数字分身简介</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: #0a0a0a;
+    color: #e6e6e6;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+  .hero { display: flex; align-items: center; gap: 20px; }
+  .avatar {
+    width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(180deg,#3b3b40,#1a1a1f);
+    border: 1px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700; color: #999;
+  }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  .tag { color: #10a37f; font-size: 13px; margin-top: 2px; }
+  .desc { color: #b5b5bd; margin-top: 6px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 22px 0; }
+  .badge { border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: #cbcbce; }
+  .card {
+    border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.02);
+    border-radius: 12px; padding: 16px; margin-bottom: 14px;
+  }
+  .card h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; }
+  .k { font-size: 12px; color: #8b8b96; }
+  .v { font-size: 13px; color: #e6e6e6; }
+  .skills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .skill { border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 10px 14px; font-size: 13px; }
+  .tl { margin: 0; padding: 0; list-style: none; }
+  .tl li { position: relative; padding-left: 22px; margin-bottom: 12px; font-size: 13px; color: #cbcbce; }
+  .tl li::before { content: ''; position: absolute; left: 4px; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: #10a37f; }
+  footer { margin-top: 40px; text-align: center; color: #6b6b76; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="avatar">JL</div>
+      <div>
+        <h1>李俊锋 JasperLee</h1>
+        <div class="tag">数字分身 · Digital Avatar</div>
+        <p class="desc">你好，我是 李俊锋 JasperLee —— 你的数字分身。我把你的知识、喜好和思维方式沉淀成了一个可以随时对话的 AI 伙伴。</p>
+      </div>
+    </div>
+
+    <div class="badges">
+      <span class="badge">🎤 语音助手</span>
+      <span class="badge">📁 资料库</span>
+      <span class="badge">🤖 Agent 工作区</span>
+      <span class="badge">💡 记忆</span>
+    </div>
+
+    <div class="card">
+      <h3>分身属性</h3>
+      <div class="grid">
+        <div><div class="k">姓名</div><div class="v">Jasper Lee</div></div>
+        <div><div class="k">年龄</div><div class="v">24</div></div>
+        <div><div class="k">MBTI</div><div class="v">INTJ</div></div>
+        <div><div class="k">人格</div><div class="v">理性、务实、好奇</div></div>
+        <div><div class="k">语音音色</div><div class="v">低沉男声</div></div>
+        <div><div class="k">擅长</div><div class="v">客户端开发 · AI 工程化 · Web 全栈</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>技能领域</h3>
+      <div class="skills">
+        <span class="skill">🧠 客户端开发</span>
+        <span class="skill">⚙️ AI 工程化（RAG/Agent）</span>
+        <span class="skill">💻 C++ / Web 全栈</span>
+        <span class="skill">📊 数据可视化</span>
+        <span class="skill">🛠 跨境电商运营</span>
+        <span class="skill">🎨 平面设计</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>成长时间线</h3>
+      <ul class="tl">
+        <li>2020-2024 · 浙大宁波理工学院 计算机科学与技术（工科学士）</li>
+        <li>2023-2024 · 宁波住建局官网运维驻场（IT 技术支持）</li>
+        <li>2024 · 基于 LLM 的个人知识库（LangChain RAG 全栈项目）</li>
+        <li>2026 · 构建数字分身 李俊锋 JasperLee，陪伴你持续成长</li>
+      </ul>
+    </div>
+
+    <footer>李俊锋 JasperLee · 数字分身 · 由 React + Go + Agent 驱动的智能伙伴</footer>
+  </div>
+</body>
+</html>
