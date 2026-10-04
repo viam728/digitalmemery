@@ -254,13 +254,13 @@ digitalmemery/
 
 | 模块 | 职责 |
 |---|---|
-| `App.tsx` | 布局壳：TopBar + IconRail + NavSidebar + 主视图（六选一）+ RightPanel；无 Key 时显示 KeyGate |
+| `App.tsx` | 布局壳：TopBar + IconRail + NavSidebar（仅「对话」栏目渲染）+ 主视图 + RightPanel；无 Key 时显示 KeyGate |
 | `api.ts` | 全部 HTTP 调用 + `streamChat`（SSE 解析：delta/steps/usage/remaining/done/error）；`jl_api_key`、`jl_admin_token` 存 localStorage |
 | `store.ts` | Zustand 全局态：key/会话/消息/模型/资料/产物/工作区/收件箱/主页/管理员；所有动作只消费真实后端数据（无 mock 假数据） |
 | `components/KeyGate.tsx` | 门控页：申请新 Key / 粘贴已有 Key |
 | `components/common/TopBar.tsx` | 顶栏：模型选择器 / 视图标题 / 操作按钮 |
-| `components/Sidebar/` | `IconRail`（窄图标栏：新建/视图切换）+ `NavSidebar`（置顶「新对话」+ 会话列表：重命名/删除/置顶） |
-| `components/Chat/ChatView.tsx` | 对话主界面：空态建议、`/` 快捷指令（/help /new /intro /skills /projects /contact /resume /search /library /inbox /home）、`@` 引用资料库文件、chat/agent 模式切换 |
+| `components/Sidebar/` | `IconRail`（窄图标栏：新建/视图切换；Agent 工作区入口已合并进「对话」，统一在对话内切换 Ask/Agent 模式）+ `NavSidebar`（置顶「新对话」+ 会话列表：重命名/删除/置顶；仅「对话」栏目渲染） |
+| `components/Chat/ChatView.tsx` | 对话主界面：空态建议、`/` 快捷指令（/help /new /intro /skills /projects /contact /resume /search /library /inbox /home）、`@` 引用资料库文件、Ask/Agent 模式切换（对话内统一入口） |
 | `components/Chat/MessageBubble.tsx` | 消息气泡（含 Response details：模型/状态/耗时/token） |
 | `components/Library/LibraryView.tsx` + `fileDisplay.ts` | 资料库：拖拽/点击上传、表格、入库按钮、预览、语义检索 |
 | `components/Workspace/WorkspaceView.tsx` | Agent 工作区：新建任务（选引用）→ 运行 → 状态/用量/文件树（引用标黄、产出可预览） |

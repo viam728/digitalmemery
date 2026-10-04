@@ -402,14 +402,14 @@ function Composer() {
               <Hash size={15} />
             </button>
             <div className="flex-1" />
-            {/* 对话 / Agent 模式切换（共用同一会话历史） */}
+            {/* Ask / Agent 模式切换（共用同一会话历史；统一在对话内切换） */}
             <div className="flex items-center rounded-md bg-white/[0.04] p-0.5">
               <button
                 onClick={() => setChatMode('chat')}
-                title="对话模式：面试应答"
+                title="Ask 模式：问答与面试应答"
                 className={`px-2 py-0.5 rounded text-[11px] transition-colors ${chatMode === 'chat' ? 'bg-accent/20 text-accent' : 'text-neutral-500 hover:text-neutral-300'}`}
               >
-                对话
+                Ask
               </button>
               <button
                 onClick={() => setChatMode('agent')}

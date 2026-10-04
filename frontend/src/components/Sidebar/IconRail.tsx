@@ -2,7 +2,6 @@ import {
   Plus,
   MessageSquare,
   FolderOpen,
-  Sparkles,
   Settings,
   BookOpen,
   LifeBuoy,
@@ -19,12 +18,12 @@ interface RailItem {
   label: string
 }
 
+// 导航项：Agent 工作区已合并进「对话」入口（统一在对话内切换 Ask/Agent 模式），不再单列
 const ITEMS: RailItem[] = [
   { key: 'avatar', icon: User, label: '个人主页' },
   { key: 'board', icon: LayoutGrid, label: '平台看板' },
-  { key: 'chat', icon: MessageSquare, label: '问答' },
+  { key: 'chat', icon: MessageSquare, label: '对话' },
   { key: 'library', icon: FolderOpen, label: '资料库' },
-  { key: 'workspace', icon: Sparkles, label: 'Agent 工作区' },
   { key: 'inbox', icon: Upload, label: '上传给我' },
 ]
 

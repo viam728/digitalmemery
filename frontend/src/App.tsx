@@ -37,7 +37,8 @@ export default function App() {
       <TopBar />
       <div className="flex flex-1 min-h-0">
         <IconRail />
-        <NavSidebar />
+        {/* 对话展开栏（会话列表）：仅「对话」栏目渲染，切换到其他栏目时不渲染 */}
+        {view === 'chat' && <NavSidebar />}
         <main className="flex-1 min-w-0 flex flex-col">
           {view === 'chat' && <ChatView />}
           {view === 'library' && <LibraryView />}
