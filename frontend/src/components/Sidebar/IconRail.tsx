@@ -8,6 +8,7 @@ import {
   Upload,
   User,
   LayoutGrid,
+  NotebookPen,
 } from 'lucide-react'
 import { useApp } from '../../store'
 import type { View } from '../../types'
@@ -30,6 +31,17 @@ const ITEMS: RailItem[] = [
 export default function IconRail() {
   const view = useApp((s) => s.view)
   const setView = useApp((s) => s.setView)
+  const social = useApp((s) => s.social)
+
+  // 博客系统入口地址优先级：平台看板「个人博客」链接（界面可维护）→ 构建期 VITE_BLOG_URL → 本机开发默认
+  const blogUrl = (() => {
+    const entry = social.find((l) => l.id === 'blog') ?? social.find((l) => l.category === 'blog' && l.url)
+    const board = entry?.url?.trim()
+    if (board && /^https?:\/\//i.test(board)) return board
+    const env = (import.meta.env.VITE_BLOG_URL as string | undefined)?.trim()
+    if (env) return env
+    return 'http://localhost:5173/'
+  })()
 
   return (
     <div className="w-11 shrink-0 flex flex-col items-center py-2 gap-1.5 border-r border-white/5 bg-ink-900">
@@ -64,6 +76,14 @@ export default function IconRail() {
 
       <button className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-white/5 hover:text-neutral-100"><BookOpen size={16} /></button>
       <button className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-white/5 hover:text-neutral-100"><LifeBuoy size={16} /></button>
+      {/* 博客系统入口（设置上方）：跳转到 MyShow 个人博客 */}
+      <button
+        onClick={() => window.open(blogUrl, '_blank', 'noopener,noreferrer')}
+        className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+        title={`打开博客系统（MyShow）：${blogUrl}`}
+      >
+        <NotebookPen size={16} />
+      </button>
       <button className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-white/5 hover:text-neutral-100"><Settings size={16} /></button>
     </div>
   )

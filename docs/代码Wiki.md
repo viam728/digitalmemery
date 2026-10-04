@@ -79,7 +79,7 @@ PGHOST=localhost          # docker compose up -d db 后默认可用
 ```
 ┌───────────────────────── 前端（React/Vite，frontend/） ─────────────────────────┐
 │  KeyGate 门控 → App（三栏布局）                                                   │
-│  ├─ 左：IconRail + NavSidebar（导航 / 会话列表 / 置顶新对话）                       │
+│  ├─ 左：IconRail（导航）+ NavSidebar（会话列表，仅对话栏目渲染）                    │
 │  ├─ 中：ChatView ｜ LibraryView ｜ WorkspaceView ｜ AvatarView ｜ InboxView ｜ Admin │
 │  └─ 右：RightPanel（工作区文件树 / 文件预览 / RAG 命中）                            │
 │  api.ts（fetch + SSE 解析） · store.ts（Zustand 全局态）                          │
@@ -259,7 +259,7 @@ digitalmemery/
 | `store.ts` | Zustand 全局态：key/会话/消息/模型/资料/产物/工作区/收件箱/主页/管理员；所有动作只消费真实后端数据（无 mock 假数据） |
 | `components/KeyGate.tsx` | 门控页：申请新 Key / 粘贴已有 Key |
 | `components/common/TopBar.tsx` | 顶栏：模型选择器 / 视图标题 / 操作按钮 |
-| `components/Sidebar/` | `IconRail`（窄图标栏：新建/视图切换；Agent 工作区入口已合并进「对话」，统一在对话内切换 Ask/Agent 模式）+ `NavSidebar`（置顶「新对话」+ 会话列表：重命名/删除/置顶；仅「对话」栏目渲染） |
+| `components/Sidebar/` | `IconRail`（窄图标栏：新建/视图切换；Agent 入口已合并进「对话」，Ask/Agent 模式在对话内切换；底部「设置」上方为博客系统入口——跳转 MyShow，地址优先取平台看板「个人博客」链接，其次 `VITE_BLOG_URL`，兜底本机开发默认）+ `NavSidebar`（置顶「新对话」+ 会话列表：重命名/删除/置顶；仅「对话」栏目渲染） |
 | `components/Chat/ChatView.tsx` | 对话主界面：空态建议、`/` 快捷指令（/help /new /intro /skills /projects /contact /resume /search /library /inbox /home）、`@` 引用资料库文件、Ask/Agent 模式切换（对话内统一入口） |
 | `components/Chat/MessageBubble.tsx` | 消息气泡（含 Response details：模型/状态/耗时/token） |
 | `components/Library/LibraryView.tsx` + `fileDisplay.ts` | 资料库：拖拽/点击上传、表格、入库按钮、预览、语义检索 |
