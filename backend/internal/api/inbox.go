@@ -62,6 +62,7 @@ func (h *Handler) UploadInbox(w http.ResponseWriter, r *http.Request) {
 		Size:      size,
 		CreatedAt: time.Now(),
 		Status:    "pending",
+		OwnerKey:  k.Key,
 	}
 	h.store.AddInbox(it)
 	// 完全自动响应：后台自动阅读投递并生成回复，不阻塞上传返回
@@ -77,6 +78,11 @@ func (h *Handler) UploadInbox(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) autoReplyInbox(id, key string) {
 	it, ok := h.store.GetInbox(id)
 	if !ok {
+		return
+	}
+	// 额度守卫：Key 额度已用尽时不生成回复（防绕过对话额度限制刷模型）
+	if k, ok := h.store.GetKey(key); ok && k.Quota > 0 && k.Used >= k.Quota {
+		h.store.SetInboxReply(id, "", "failed")
 		return
 	}
 	h.store.SetInboxReply(id, "", "replying")
@@ -149,22 +155,26 @@ func (h *Handler) readInboxText(it models.InboxItem) (string, bool) {
 	return string(b), true
 }
 
-// ListInbox GET /api/inbox —— 收件箱列表
+// ListInbox GET /api/inbox —— 收件箱列表（按访客隔离：本人投递 + 历史无归属条目）
 func (h *Handler) ListInbox(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
-	items := h.store.ListInbox()
-	if items == nil {
-		items = []models.InboxItem{}
+	out := []models.InboxItem{}
+	for _, it := range h.store.ListInbox() {
+		if it.OwnerKey == "" || it.OwnerKey == k.Key {
+			out = append(out, it)
+		}
 	}
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // DownloadInbox GET /api/inbox/{id}/download —— 下载招聘者投递的文件
 func (h *Handler) DownloadInbox(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
@@ -172,6 +182,10 @@ func (h *Handler) DownloadInbox(w http.ResponseWriter, r *http.Request) {
 	it, ok := h.store.GetInbox(id)
 	if !ok {
 		writeErr(w, http.StatusNotFound, "inbox item not found")
+		return
+	}
+	if it.OwnerKey != "" && it.OwnerKey != k.Key {
+		writeErr(w, http.StatusForbidden, "无权访问该投递")
 		return
 	}
 	path := filepath.Join(h.cfg.DataDir, "inbox", it.ID+filepath.Ext(it.FileName))
@@ -187,7 +201,8 @@ func (h *Handler) DownloadInbox(w http.ResponseWriter, r *http.Request) {
 
 // DeleteInbox DELETE /api/inbox/{id} —— 删除收件箱条目
 func (h *Handler) DeleteInbox(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
@@ -195,6 +210,10 @@ func (h *Handler) DeleteInbox(w http.ResponseWriter, r *http.Request) {
 	it, ok := h.store.GetInbox(id)
 	if !ok {
 		writeErr(w, http.StatusNotFound, "inbox item not found")
+		return
+	}
+	if it.OwnerKey != "" && it.OwnerKey != k.Key {
+		writeErr(w, http.StatusForbidden, "无权访问该投递")
 		return
 	}
 	_ = h.store.DeleteInboxOnDisk(it)

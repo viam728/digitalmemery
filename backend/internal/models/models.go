@@ -52,19 +52,21 @@ type ResponseDetails struct {
 // IsArtifact 产物标记：Agent 工作区产出的文件与资料库是同一份存储（同一行记录），
 // 标记为产物的文件会自动暴露到「Jasper 的空间」，对外可见；非产物的工作区中间文件不暴露。
 type FileMeta struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Kind        string    `json:"kind"`
-	Path        string    `json:"path"`
-	Owner       string    `json:"owner"`
-	Size        int64     `json:"size"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	AccessedAt  time.Time `json:"accessedAt"`
-	Tags        []string  `json:"tags"`
-	Ingested    bool      `json:"ingested"`
-	IsArtifact  bool      `json:"isArtifact,omitempty"`
-	WorkspaceID string    `json:"workspaceId,omitempty"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Kind       string    `json:"kind"`
+	Path       string    `json:"path"`
+	Owner      string    `json:"owner"`
+	Size       int64     `json:"size"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+	AccessedAt time.Time `json:"accessedAt"`
+	Tags       []string  `json:"tags"`
+	Ingested   bool      `json:"ingested"`
+	IsArtifact bool      `json:"isArtifact,omitempty"`
+	// OwnerKey 上传者 Key（访客上传件归属；空表示 Jasper 公开资料/产物/历史文件）
+	OwnerKey    string `json:"ownerKey,omitempty"`
+	WorkspaceID string `json:"workspaceId,omitempty"`
 }
 
 // RagHit 检索命中片段
@@ -157,6 +159,7 @@ type InboxItem struct {
 	Status    string    `json:"status,omitempty"`
 	Reply     string    `json:"reply,omitempty"`     // 数字分身自动回复正文
 	RepliedAt time.Time `json:"repliedAt,omitempty"` // 回复时间
+	OwnerKey  string    `json:"ownerKey,omitempty"`  // 投递者 Key（收件箱按访客隔离）
 }
 
 // ApiKey 访客临时 Key：申请后获得 token 额度与资料库访问权限

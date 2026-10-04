@@ -144,7 +144,7 @@ func artifactKind(k string) string {
 	return "markdown"
 }
 
-// ListArtifacts GET /api/artifacts —— Jasper 的空间对外暴露的 Agent 产物
+// ListArtifacts GET /api/artifacts —— Jasper 的空间的 Agent 产物（按工作区归属过滤）
 func (h *Handler) ListArtifacts(w http.ResponseWriter, r *http.Request) {
 	k, ok := h.requireKey(r)
 	if !ok {
@@ -155,5 +155,24 @@ func (h *Handler) ListArtifacts(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "library access not granted on this key")
 		return
 	}
-	writeJSON(w, http.StatusOK, h.store.ListArtifacts())
+	// 产物归属过滤：仅透出当前 Key 自己任务产生的产物（无工作区关联的历史产物兼容可见）
+	out := []models.FileMeta{}
+	for _, f := range h.store.ListArtifacts() {
+		if h.artifactVisibleTo(f, k.Key) {
+			out = append(out, f)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// artifactVisibleTo 产物对访客 Key 是否可见（按工作区归属判定）
+func (h *Handler) artifactVisibleTo(f models.FileMeta, key string) bool {
+	if f.WorkspaceID == "" {
+		return true // 历史/未关联工作区的产物
+	}
+	ws, ok := h.store.GetWorkspace(f.WorkspaceID)
+	if !ok || ws.OwnerKey == "" {
+		return true
+	}
+	return ws.OwnerKey == key
 }

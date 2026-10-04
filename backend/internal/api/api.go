@@ -316,7 +316,14 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "library access not granted on this key")
 		return
 	}
-	writeJSON(w, http.StatusOK, h.store.ListFiles())
+	// 文件可见性：Jasper 公开资料 + 本人上传（历史无归属文件兼容可见）
+	out := []models.FileMeta{}
+	for _, f := range h.store.ListFiles() {
+		if fileVisibleTo(f, k.Key) {
+			out = append(out, f)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // UploadFile POST /api/files/upload —— multipart 上传文件到资料库
@@ -363,6 +370,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		Kind:       inferKind(ext),
 		Path:       "我分享的",
 		Owner:      k.Label,
+		OwnerKey:   k.Key,
 		Size:       size,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
@@ -375,14 +383,23 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 // GetFileContent GET /api/files/{id}/content —— 返回文件内容用于预览
 // 文本类（markdown/json/csv/code/text）返回 UTF-8 文本；图片/PDF/Office 返回原始字节
 func (h *Handler) GetFileContent(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
+		return
+	}
+	if !k.Library {
+		writeErr(w, http.StatusForbidden, "library access not granted on this key")
 		return
 	}
 	id := r.PathValue("id")
 	f, ok := h.store.GetFile(id)
 	if !ok {
 		writeErr(w, http.StatusNotFound, "file not found")
+		return
+	}
+	if !fileVisibleTo(f, k.Key) {
+		writeErr(w, http.StatusForbidden, "无权访问该文件")
 		return
 	}
 	data, err := h.store.ReadBytes(f)
@@ -415,6 +432,10 @@ func (h *Handler) IngestFile(w http.ResponseWriter, r *http.Request) {
 	f, ok := h.store.GetFile(id)
 	if !ok {
 		writeErr(w, http.StatusNotFound, "file not found")
+		return
+	}
+	if !fileVisibleTo(f, k.Key) {
+		writeErr(w, http.StatusForbidden, "无权操作该文件")
 		return
 	}
 	content, ok := h.store.ReadContent(f)
@@ -494,7 +515,7 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	// 把引用的资料库文件挂到工作区文件树
 	var refFiles []models.WorkspaceFile
 	for _, rid := range req.Refs {
-		if f, ok := h.store.GetFile(rid); ok {
+		if f, ok := h.store.GetFile(rid); ok && fileVisibleTo(f, k.Key) {
 			refFiles = append(refFiles, models.WorkspaceFile{
 				ID:         f.ID,
 				Name:       f.Name,
@@ -538,9 +559,9 @@ func (h *Handler) RunWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 收集引用文件内容作为上下文
+	// 收集引用文件内容作为上下文（只收集当前 Key 可见的文件）
 	refs := collectRefs(ws.Files, func(fid string) models.RefContent {
-		if f, ok := h.store.GetFile(fid); ok {
+		if f, ok := h.store.GetFile(fid); ok && fileVisibleTo(f, k.Key) {
 			if c, ok := h.store.ReadContent(f); ok {
 				return models.RefContent{ID: f.ID, Name: f.Name, Content: c}
 			}
@@ -631,7 +652,7 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(fid, "conv:") {
 			continue // 会话引用仅做标记，不注入正文
 		}
-		if f, ok := h.store.GetFile(fid); ok {
+		if f, ok := h.store.GetFile(fid); ok && fileVisibleTo(f, k.Key) {
 			if c, ok := h.store.ReadContent(f); ok && c != "" {
 				if len(c) > 6000 {
 					c = c[:6000] + "…（已截断）"

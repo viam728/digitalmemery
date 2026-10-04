@@ -268,7 +268,7 @@ digitalmemery/
 | DELETE | `/api/conversations/{id}` | 删除会话及消息 |
 | GET | `/api/conversations/{id}/messages` | 消息列表 |
 | POST | `/api/conversations/{id}/messages/stream` | **SSE 对话** `{content, refs?, mode?}`；事件：steps/delta/usage/remaining/done/error |
-| GET | `/api/files` | 资料库列表 |
+| GET | `/api/files` | 资料库列表（按访客可见性过滤） |
 | POST | `/api/files/upload` | 上传文件（multipart `file`） |
 | GET | `/api/files/{id}/content` | 预览内容（文本 UTF-8 / docx 抽取正文 / 其他二进制原始字节） |
 | GET | `/api/files/{id}/download` | 附件下载 |
@@ -276,7 +276,7 @@ digitalmemery/
 | DELETE | `/api/files/{id}` | 删除（仅「我分享的」） |
 | POST | `/api/files/{id}/ingest` | 向量化入库 |
 | POST | `/api/inbox/upload` | 投递材料（multipart：`file`+`name`+`note`）→ **触发自动应答** |
-| GET | `/api/inbox` | 收件箱列表（含 `status/reply/repliedAt`） |
+| GET | `/api/inbox` | 收件箱列表（按访客隔离；含 `status/reply/repliedAt`） |
 | GET | `/api/inbox/{id}/download` | 下载投递文件 |
 | DELETE | `/api/inbox/{id}` | 删除投递 |
 | POST | `/api/rag/query` | 语义检索 `{query}` → 命中片段 |
@@ -325,6 +325,13 @@ digitalmemery/
 - `inbox/{id}{ext}`：访客投递文件。
 - `rag_index.json`：memStore 向量索引落盘（glm/mock/local 模式）。
 - `store.json`：memStore 全量持久化（会话/文件/Key/收件箱）。
+
+### 归属与隔离模型（2026-10-04 起）
+
+- 会话 / 工作区：按 `OwnerKey`（访客 Key）隔离；越权一律 404（不暴露存在性）。
+- 文件：「我的资料」「Jasper 的空间」为公开共享（所有访客可读、不可改）；「我分享的」上传件仅上传者可见/可操作；历史无归属文件兼容可见。
+- 收件箱：仅投递者可见本人条目。
+- 产物：「Jasper 的空间」的 Agent 产物按工作区归属可见（无工作区关联的历史产物兼容可见）。
 
 ---
 
@@ -464,12 +471,12 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 
 | # | 现状 | 影响 | 建议 |
 |---|---|---|---|
-| 1 | 文件未按访客隔离（「我分享的」上传件同库可见） | 访客间文件内容可能互见 | 为 `FileMeta` 增加 `ownerKey` 并做访问过滤（M5） |
-| 2 | PDF 不做文本抽取（docx 已支持） | RAG 仅覆盖 md 版全文；PDF 仅下载 | 接 PDF 解析库或外部解析服务 |
+| 1 | 收件箱自动应答不生成产物文件 | 回复仅在收件箱展示 | 可生成匹配度报告并发布（可选） |
+| 2 | PDF 不做文本抽取（docx 已支持；本机 Go module 代理不可达，暂无法引入解析库） | PDF 仅下载、正文不入库 | 环境允许时接入 PDF 解析（本地代理 / 离线 vendor） |
 | 3 | pgpool 不支持 SCRAM & SSL | 连默认配置的 PG14+ 会降级内存 | 补 SCRAM-SHA-256 或文档化 md5 要求（compose 已配 md5） |
 | 4 | 访客 Key 永久有效（无 TTL） | 泄露后可被长期使用 | 增加过期时间/重置策略（后续） |
 | 5 | 记忆系统 v1 | 人设/RAG 在线；无访客维度记忆 | 会话/收件箱记忆隔离 + 摘要记忆（M5） |
-| 6 | 收件箱自动应答不生成产物文件 | 回复仅在收件箱展示 | 生成 `匹配度报告.md` 并发布（见 12 节） |
+| 6 | 冒烟验证依赖会话临时脚本（.cowork-temp） | 回归需重建脚本 | 可固化到 scripts/（可选） |
 | 7 | mock 模型为固定腔调 | 开发演示可读性一般 | 可让 mock 也走灵魂模板（低成本） |
 | 8 | 前端离线时快捷键回执不落库 | 刷新后丢失 | 已有真实会话兜底，影响小 |
 
@@ -495,6 +502,15 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 
 - 新增：**docx（Word）纯文本抽取**（`internal/textract`）——资料库上传的 docx 可入库/检索/引用；右栏预览直接显示正文；收件箱 docx 投递可被自动应答阅读。
 - 新增：**SSE 心跳**——对话流每 15s 发送注释帧 `: ping`，防隧道/代理断开长连接（前端解析器自动忽略）。（已在 35s 长流上实测观察到 2 次心跳）
+
+**2026-10-04（第四波）**
+
+- 新增：**文件与收件箱的访客隔离**——`FileMeta`/`InboxItem` 增加 `OwnerKey`；「我分享的」上传件与收件箱条目仅归属者可见/可操作（列表/预览/下载/入库/改名/删除、@引用与工作区引用过滤均生效，越权 403）；Jasper 公开资料对全部访客可见。
+
+**2026-10-04（第五波）**
+
+- 新增：**Agent 产物归属过滤**——`/api/artifacts` 仅透出当前 Key 自己任务产生的产物；无工作区关联的历史产物兼容可见。
+- 新增：**收件箱自动应答额度守卫**——Key 额度用尽时不再生成回复（`status=failed`），防绕过对话额度限制刷模型。
 
 **更早**：M0 框架 → M1 对话（SSE/Key 计量/模型选择）→ M2 资料库（上传/预览/入库/RAG）→ M3 Agent 工作区（引用挂载/产物发布/Response details）→ Docker/PG/隧道部署 → 脚本排障（编码/路径/异步引导）。
 
