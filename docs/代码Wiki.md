@@ -104,6 +104,8 @@ PGHOST=localhost          # docker compose up -d db 后默认可用
    表：conversations/messages/files/…             rag_index.json、store.json）
 ```
 
+**分层（2026-10-04 起）**：`internal/core` 装配领域服务（存储 / RAG / 模型 / Agent / 人设），与传输无关；`internal/api`（HTTP）与 `internal/mcp`（MCP 协议，stdio + HTTP）是两个**薄传输层**，共享同一套 core——新增对外形态只需再写一个传输层。
+
 **一个请求的一生**（以「提问」为例）：
 
 1. 前端 `streamChat()` → `POST /api/conversations/{id}/messages/stream`；
@@ -145,6 +147,8 @@ digitalmemery/
       ├─ config/              # 配置加载（.env + 环境变量）
       ├─ llm/                 # 模型客户端（流式）
       ├─ models/              # 数据结构定义
+      ├─ core/                # 领域服务装配（存储/RAG/模型/Agent/人设）——传输无关
+      ├─ mcp/                 # MCP 服务（JSON-RPC 2.0；stdio + HTTP，工具/资源）
       ├─ pgpool/              # 纯标准库 PostgreSQL 客户端
       ├─ rag/                 # RAG：分块/Embedding/向量库
       ├─ textract/            # Office（docx）纯文本抽取
@@ -230,6 +234,19 @@ digitalmemery/
 - 接入点：资料库 `ReadContent`（入库/@引用/收件箱自动应答读取）、`/api/files/{id}/content`（docx 直接给文本预览）、启动引导 `bootstrapIndex`。
 - PDF 暂不支持（格式复杂，保留原文下载），由 roadmap 跟踪。
 
+### 5.11 `internal/core` — 领域服务装配（传输无关）
+
+- `Core{ Cfg, Store, RAG, LLM, Agent }`：在 `New(cfg)` 中统一装配，并触发启动期副作用（模型默认值 / 知识库引导 `bootstrapIndex` / 模型列表刷新）。
+- `CurrentModel()` 与 `AvatarData()`（人设数据）也在此层，供所有传输层复用。
+- 价值：HTTP 与 MCP 共享同一套实例与行为；`internal/api` 的 `New` 退化为「core + 传输胶水」。
+
+### 5.12 `internal/mcp` — MCP 服务（对外挂载）
+
+- 零第三方依赖的 Model Context Protocol 服务：JSON-RPC 2.0 信封 + MCP 生命周期（`initialize` → `notifications/initialized`）。
+- 双传输：`ServeStdio`（行分隔 JSON，供宿主托管）与 `ServeHTTP`（`POST /mcp` 返回 JSON）。
+- 能力：`tools/list` / `tools/call`（7 个工具）+ `resources/list` / `resources/read`（资料库文件，`jasperlee://materials/{id}`）；协议版本 `2025-06-18`。
+- 详见 [MCP.md](MCP.md)。
+
 ---
 
 ## 6. 前端模块详解
@@ -287,6 +304,7 @@ digitalmemery/
 | POST | `/api/workspaces` | 新建工作区 `{title?, model?, refs?}` |
 | POST | `/api/workspaces/{id}/run` | 运行任务 `{prompt, expose?}` → `{workspace, artifacts}` |
 | GET | `/api/avatar` | 主页数据（无需鉴权） |
+| POST | `/mcp` | **MCP 服务**（JSON-RPC 2.0：initialize / tools / resources，无独立鉴权） |
 | POST | `/api/admin/login` | 管理员登录 `{password}` → `{token}` |
 | GET | `/api/admin/stats` | 看板（运行时长/计数/额度） |
 | GET | `/api/admin/keys` | Key 列表 |
@@ -424,6 +442,8 @@ cd backend && go run .          # 或 go build -o jasperlee.exe . && ./jasperlee
 cd frontend && npm run dev      # 开发；或 npm run build（产物给后端静态托管）
 ```
 
+**MCP 模式**：`./jasperlee -mcp`（stdio，供宿主进程托管）；HTTP 入口为 `POST /mcp`；宿主接入说明见 [MCP.md](MCP.md)。
+
 ### B. Docker Compose
 
 ```bash
@@ -511,6 +531,12 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 
 - 新增：**Agent 产物归属过滤**——`/api/artifacts` 仅透出当前 Key 自己任务产生的产物；无工作区关联的历史产物兼容可见。
 - 新增：**收件箱自动应答额度守卫**——Key 额度用尽时不再生成回复（`status=failed`），防绕过对话额度限制刷模型。
+
+**2026-10-04（第六波）**
+
+- 架构：抽出传输无关的 `internal/core`（领域服务装配），`internal/api` 变薄，与新增的 `internal/mcp` 共享同一 core。
+- 新增：**MCP 服务**（零依赖 JSON-RPC 2.0）——stdio（`-mcp`）与 HTTP（`POST /mcp`）双传输；7 个工具 + 资料库资源；协议版本 2025-06-18。对接说明见 `docs/MCP.md`。
+- 人设数据（`AvatarData`）从 HTTP 层迁入 core，供两种传输复用。
 
 **更早**：M0 框架 → M1 对话（SSE/Key 计量/模型选择）→ M2 资料库（上传/预览/入库/RAG）→ M3 Agent 工作区（引用挂载/产物发布/Response details）→ Docker/PG/隧道部署 → 脚本排障（编码/路径/异步引导）。
 

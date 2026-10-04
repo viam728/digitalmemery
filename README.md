@@ -4,7 +4,8 @@
 1. **看个人主页**（简历/技能/项目作品/时间线）；
 2. **与分身问答**（分身基于「关于我」知识库 RAG 回答，流式输出）；
 3. **浏览资料库**（个人作品文档，支持预览/入库/检索）；
-4. **上传文件给我**（JD/招聘资料/问题清单，落入收件箱，数字分身自动阅读并回复）。
+4. **上传文件给我**（JD/招聘资料/问题清单，落入收件箱，数字分身自动阅读并回复）；
+5. **对外挂载（MCP）**（把分身能力以 Model Context Protocol 标准服务暴露，供 Claude Desktop / Codex / Cherry 等外部宿主接入）。
 
 技术栈：React + Go + Agent，参照 Codex / Cherry Studio 交互范式（深色三栏布局，左导航 + 中主区 + 右上下文/引用面板）。
 
@@ -16,13 +17,15 @@ digitalmemery/
 ├─ data/                   # 后端数据目录（store.json、上传文件、向量索引）
 ├─ frontend/               # React + Vite + TS + Tailwind + Zustand
 │  └─ public/jasperlee.html # JasperLee 数字分身内置简介 HTML
-└─ backend/                # Go 1.26 标准库 net/http
-   └─ internal/{api,storage,rag,agent,config,models}
+└─ backend/                # Go 1.26 标准库（零第三方依赖）
+   └─ internal/{api,mcp,core,storage,rag,agent,llm,config,models}
+      # api=HTTP 传输 / mcp=MCP 传输 / core=领域服务装配（两者共享）
 ```
 
 ## 文档
 
 - [Code Wiki](docs/代码Wiki.md) —— 架构 / 模块 / API / 数据流 / 扩展指南（速查手册）
+- [MCP 服务对接](docs/MCP.md) —— stdio / HTTP 双传输；工具与资源配置
 - [产品需求书](docs/需求书.md)
 - [脚本排障记录](docs/脚本排障记录.md)
 
@@ -34,8 +37,8 @@ cd backend && go run .
 # 配置在 backend/.env（含真实 GLM 密钥，勿公开提交）：
 #   MODEL_PROVIDER=glm（mock 关闭真实模型；glm 走 OpenAI 兼容）
 #   MODEL_API_KEY=<智谱 key>  MODEL_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-#   MODEL_NAME=glm-4-flash（免费档，可换 glm-4.5 / glm-4-air）
-#   RAG_PROVIDER=mock|local|aliyun
+#   MODEL_NAME=glm-4.5-air（当前默认；key 内全部模型启动时自动拉取，可在对话页切换）
+#   RAG_PROVIDER=glm|mock|local|aliyun
 ```
 
 ### 前端（:5173，代理 /api 到 :8080）
@@ -44,6 +47,22 @@ cd frontend && npm install && npm run dev
 ```
 
 浏览器打开 http://localhost:5173
+
+## MCP 服务（对外挂载）
+
+数字分身的能力以标准 **MCP（Model Context Protocol）** 对外暴露，支持两种传输（零第三方依赖）：
+
+```bash
+# 1) stdio（宿主进程托管，桌面客户端标准方式）
+./jasperlee -mcp
+
+# 2) HTTP（服务运行中即可用）
+curl -s -X POST http://localhost:8080/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+- 能力：7 个工具（问答 / 检索 / 资料 / 人设 / 投递 / Agent 任务）+ 资料库资源。
+- 宿主配置（mcpServers）与协议细节见 [MCP 对接文档](docs/MCP.md)。
 
 ## Docker 开发和部署
 
@@ -117,7 +136,8 @@ docker compose down -v     # 停止并清空数据卷
 - [x] M2 资料库：列表/入库 + RAG 检索
 - [x] M3 Agent：任务编排 + 引用挂载 + Response details
 - [x] M4 数字分身 v1：人设/SKILL + RAG 引导 + 收件箱自动应答 + 会话自动命名 + 访客数据隔离（会话/工作区/文件/收件箱/产物）
-- [ ] M5 记忆增强：PDF 文本抽取、产物归属过滤、记忆系统（规划中）
+- [x] M5 对外挂载：MCP 服务（stdio + HTTP；7 工具 + 资源；零依赖）
+- [ ] M6 记忆增强：PDF 文本抽取、记忆系统（规划中）
 
 ## 端到端网络部署（开源内网穿透）
 不买服务器，用开源隧道把本机服务暴露到公网（cloudflared 优先，localtunnel 兜底）：

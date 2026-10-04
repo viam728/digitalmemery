@@ -2,6 +2,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -9,16 +10,33 @@ import (
 
 	"jasperlee/backend/internal/api"
 	"jasperlee/backend/internal/config"
+	"jasperlee/backend/internal/core"
+	"jasperlee/backend/internal/mcp"
 )
 
 func main() {
+	mcpMode := flag.Bool("mcp", false, "run as MCP server over stdio")
+	flag.Parse()
+
 	cfg := config.Load()
+
+	// MCP stdio 模式：与 HTTP 模式共享同一套 core，仅传输层不同（便于被宿主进程托管）
+	if *mcpMode {
+		srv := mcp.New(core.New(cfg))
+		if err := srv.ServeStdio(os.Stdin, os.Stdout); err != nil {
+			log.Fatalf("mcp server error: %v", err)
+		}
+		return
+	}
 
 	mux := http.NewServeMux()
 	h := api.New(cfg)
 
 	// 健康检查
 	mux.HandleFunc("GET /api/health", h.Health)
+
+	// MCP（Model Context Protocol）HTTP 入口（Streamable HTTP，JSON-RPC 2.0）
+	mux.HandleFunc("POST /mcp", h.MCP)
 
 	// Key 机制（免登录，访客申请临时 Key 获得额度与资料库权限）
 	mux.HandleFunc("POST /api/keys/apply", h.ApplyKey)

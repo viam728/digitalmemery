@@ -1,11 +1,9 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,81 +14,40 @@ import (
 
 	"jasperlee/backend/internal/agent"
 	"jasperlee/backend/internal/config"
+	"jasperlee/backend/internal/core"
 	"jasperlee/backend/internal/llm"
+	"jasperlee/backend/internal/mcp"
 	"jasperlee/backend/internal/models"
 	"jasperlee/backend/internal/rag"
 	"jasperlee/backend/internal/storage"
 	"jasperlee/backend/internal/textract"
 )
 
-// Handler 聚合各模块
+// Handler 聚合各模块（HTTP 传输层；领域服务由 internal/core 统一装配）
 type Handler struct {
 	cfg         *config.Config
 	store       *storage.Store
 	rag         *rag.Service
 	agent       *agent.WorkspaceSvc
 	llm         *llm.Client
+	mcp         *mcp.Server
 	startTime   time.Time
 	adminMu     sync.Mutex
 	adminTokens map[string]time.Time // admin token -> 过期时间
 }
 
 func New(cfg *config.Config) *Handler {
-	// 共享模型客户端：会话流式与 Agent 任务复用同一实例，仅构造一次
-	llmClient := llm.NewWithOptions(cfg.ModelProvider, cfg.ModelAPIKey, cfg.ModelBaseURL, cfg.ModelHostIP, cfg.ModelName)
-	ragSvc := rag.New(cfg.RAGProvider, cfg.DataDir, cfg.ModelAPIKey, cfg.ModelBaseURL)
-	h := &Handler{
-		cfg:         cfg,
-		store:       storage.New(cfg),
-		rag:         ragSvc,
-		agent:       agent.NewWorkspaceSvc(llmClient),
-		llm:         llmClient,
+	// 领域服务由 core 统一装配（与 MCP 传输层共享同一套实例）
+	c := core.New(cfg)
+	return &Handler{
+		cfg:         c.Cfg,
+		store:       c.Store,
+		rag:         c.RAG,
+		agent:       c.Agent,
+		llm:         c.LLM,
+		mcp:         mcp.New(c),
 		startTime:   time.Now(),
 		adminTokens: make(map[string]time.Time),
-	}
-	// GLM 默认模型：key 内的模型全配进去（默认 MODEL_NAME）
-	h.initModelDefaults()
-	// 后台异步向量化：不阻塞服务启动（网络慢时也能立即响应）
-	go h.bootstrapIndex()
-	// 后台刷新 GLM 模型列表（失败仅打日志）
-	go llm.RefreshModels(cfg.ModelBaseURL, cfg.ModelAPIKey, cfg.ModelHostIP)
-	return h
-}
-
-// initModelDefaults 初始化模型默认值：MODEL_LIST 全配进去，默认 MODEL_NAME
-func (h *Handler) initModelDefaults() {
-	if h.cfg.ModelList != "" {
-		return // 已显式配置，不覆盖
-	}
-	// 默认把 key 内已知的 GLM 模型全配进去（启动后台刷新会更新缓存）
-	h.cfg.ModelList = "glm-4.5,glm-4.5-air,glm-4.6,glm-4.7,glm-5,glm-5-turbo,glm-5.1,glm-5.2,glm-5.3,glm-5.3-flash"
-	if h.cfg.ModelName == "" || h.cfg.ModelName == "deepseek-chat" {
-		h.cfg.ModelName = "glm-4-flash"
-	}
-	h.llm.SetModel(h.cfg.ModelName)
-}
-
-// bootstrapIndex 启动时自动把「关于我」种子文档向量化入库，
-// 保证招聘者第一次提问就能被分身基于知识库回答（无需手动点击入库）。
-func (h *Handler) bootstrapIndex() {
-	for _, f := range h.store.ListFiles() {
-		if f.Ingested {
-			continue
-		}
-		// PDF/图片无文本抽取、跳过；docx 由 textract 抽取正文后入库
-		switch f.Kind {
-		case "pdf", "image":
-			continue
-		}
-		content, ok := h.store.ReadContent(f)
-		if !ok || len(content) < 20 {
-			continue
-		}
-		if err := h.rag.Ingest(context.Background(), f.ID, f.Name, content); err != nil {
-			log.Printf("[bootstrap] ingest %s failed: %v", f.Name, err)
-			continue
-		}
-		h.store.MarkIngested(f.ID)
 	}
 }
 
@@ -130,6 +87,12 @@ func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
 		"rag":    h.cfg.RAGProvider,
 		"llm":    h.cfg.ModelProvider,
 	})
+}
+
+// MCP POST /mcp —— MCP（Model Context Protocol）服务的 HTTP 入口。
+// 与「-mcp」stdio 模式共用同一套 core 与工具实现（Streamable HTTP，JSON-RPC 2.0）。
+func (h *Handler) MCP(w http.ResponseWriter, r *http.Request) {
+	h.mcp.ServeHTTP(w, r)
 }
 
 // ApplyKey POST /api/keys/apply  —— 访客申请临时 Key
