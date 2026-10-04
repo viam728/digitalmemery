@@ -14,6 +14,7 @@ import (
 	"jasperlee/backend/internal/agent"
 	"jasperlee/backend/internal/llm"
 	"jasperlee/backend/internal/models"
+	"jasperlee/backend/internal/textract"
 )
 
 // UploadInbox POST /api/inbox/upload —— 招聘者上传文件给我（JD / 资料 / 问题清单）
@@ -130,16 +131,20 @@ func (h *Handler) autoReplyInbox(id, key string) {
 	_, _ = h.store.ConsumeTokens(key, tokens)
 }
 
-// readInboxText 读取文本类投递文件的正文（二进制/富文本格式返回 false，交由留言兜底）
+// readInboxText 读取投递文件的正文（文本类直读；docx 抽取正文；其他二进制返回 false，交由留言兜底）
 func (h *Handler) readInboxText(it models.InboxItem) (string, bool) {
-	switch inferKind(strings.ToLower(filepath.Ext(it.FileName))) {
-	case "markdown", "json", "csv", "code", "text":
+	kind := inferKind(strings.ToLower(filepath.Ext(it.FileName)))
+	switch kind {
+	case "markdown", "json", "csv", "code", "text", "docx":
 	default:
 		return "", false
 	}
 	b, err := os.ReadFile(filepath.Join(h.cfg.DataDir, "inbox", it.ID+filepath.Ext(it.FileName)))
 	if err != nil {
 		return "", false
+	}
+	if kind == "docx" {
+		return textract.DocxText(b)
 	}
 	return string(b), true
 }

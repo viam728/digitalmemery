@@ -20,6 +20,7 @@ import (
 	"jasperlee/backend/internal/models"
 	"jasperlee/backend/internal/rag"
 	"jasperlee/backend/internal/storage"
+	"jasperlee/backend/internal/textract"
 )
 
 // Handler 聚合各模块
@@ -76,9 +77,9 @@ func (h *Handler) bootstrapIndex() {
 		if f.Ingested {
 			continue
 		}
-		// 二进制类型（PDF/Office/图片）不做向量化，其全文由对应 md 承载
+		// PDF/图片无文本抽取、跳过；docx 由 textract 抽取正文后入库
 		switch f.Kind {
-		case "pdf", "docx", "image":
+		case "pdf", "image":
 			continue
 		}
 		content, ok := h.store.ReadContent(f)
@@ -390,6 +391,14 @@ func (h *Handler) GetFileContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.store.TouchFile(id)
+	// docx：服务端抽取正文，前端以文本方式预览（比原始二进制更可用）
+	if f.Kind == "docx" {
+		if text, ok := textract.DocxText(data); ok {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte(text))
+			return
+		}
+	}
 	w.Header().Set("Content-Type", contentTypeOf(f))
 	w.Header().Set("Content-Disposition", "inline; filename*=UTF-8''"+url.PathEscape(f.Name))
 	_, _ = w.Write(data)
@@ -665,23 +674,49 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	emit := func(s string) {
-		fmt.Fprintf(w, "data: %s\n\n", jsonMarshal(map[string]any{"delta": s}))
+	// 心跳：每 15s 发一行 SSE 注释帧，防止代理/隧道把空闲连接断开；
+	// 注释行（: 开头）会被前端解析器自动忽略。写响应必须经 writeSSE 串行化。
+	var sseMu sync.Mutex
+	writeSSE := func(payload string) {
+		sseMu.Lock()
+		fmt.Fprint(w, payload)
 		if flusher != nil {
 			flusher.Flush()
 		}
+		sseMu.Unlock()
+	}
+	stopHeartbeat := make(chan struct{})
+	var heartbeatWG sync.WaitGroup
+	heartbeatWG.Add(1)
+	go func() {
+		defer heartbeatWG.Done()
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopHeartbeat:
+				return
+			case <-ticker.C:
+				writeSSE(": ping\n\n")
+			}
+		}
+	}()
+	defer func() {
+		close(stopHeartbeat)
+		heartbeatWG.Wait()
+	}()
+
+	emit := func(s string) {
+		writeSSE("data: " + jsonMarshal(map[string]any{"delta": s}) + "\n\n")
 	}
 	// 先下发工作流步骤（可观测），再流式正文
-	fmt.Fprintf(w, "data: %s\n\n", jsonMarshal(map[string]any{
+	writeSSE("data: " + jsonMarshal(map[string]any{
 		"steps": []map[string]any{
 			{"name": "识别考察点", "detail": "考察点：" + plan.Focus + "；SKILL：" + plan.Skill},
 			{"name": "定位简历项目", "detail": "选用真实项目：" + strings.Join(plan.Projects, "、")},
 		},
 		"model": model,
-	}))
-	if flusher != nil {
-		flusher.Flush()
-	}
+	}) + "\n\n")
 
 	start := time.Now()
 	var reply strings.Builder
@@ -696,7 +731,7 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 	}, wrappedEmit)
 
 	if err != nil {
-		fmt.Fprintf(w, "data: %s\n\n", jsonMarshal(map[string]any{"error": err.Error()}))
+		writeSSE("data: " + jsonMarshal(map[string]any{"error": err.Error()}) + "\n\n")
 		return
 	}
 
@@ -724,8 +759,8 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
-	fmt.Fprintf(w, "data: %s\n\n", jsonMarshal(map[string]any{"usage": uint64(tokens), "remaining": uint64(remaining(k, tokens))}))
-	fmt.Fprintf(w, "data: %s\n\n", jsonMarshal(map[string]any{"done": true}))
+	writeSSE("data: " + jsonMarshal(map[string]any{"usage": uint64(tokens), "remaining": uint64(remaining(k, tokens))}) + "\n\n")
+	writeSSE("data: " + jsonMarshal(map[string]any{"done": true}) + "\n\n")
 }
 
 func jsonMarshal(v any) string {

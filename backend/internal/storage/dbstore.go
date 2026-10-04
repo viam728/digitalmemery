@@ -11,12 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"jasperlee/backend/internal/config"
 	"jasperlee/backend/internal/models"
 	"jasperlee/backend/internal/pgpool"
+	"jasperlee/backend/internal/textract"
 )
 
 // pgStore PostgreSQL 持久化实现。单连接 + 内部互斥（pgpool 已串行化），低并发场景足够。
@@ -364,11 +366,15 @@ func (s *pgStore) ReadBytes(f models.FileMeta) ([]byte, error) {
 	return nil, err
 }
 
-// ReadContent 读取文件文本内容用于 ingest / 上下文注入
+// ReadContent 读取文件文本内容用于 ingest / 上下文注入。
+// docx 自动抽取正文（Word OOXML）；其他类型按 UTF-8 处理。
 func (s *pgStore) ReadContent(f models.FileMeta) (string, bool) {
 	b, err := s.ReadBytes(f)
 	if err != nil {
 		return "", false
+	}
+	if strings.EqualFold(filepath.Ext(f.Name), ".docx") {
+		return textract.DocxText(b)
 	}
 	return string(b), true
 }

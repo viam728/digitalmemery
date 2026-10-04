@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"jasperlee/backend/internal/models"
+	"jasperlee/backend/internal/textract"
 )
 
 // randomKey 生成 16 字节随机 hex（memStore 与 pgStore 共用）。
@@ -275,11 +277,15 @@ func (s *memStore) ReadBytes(f models.FileMeta) ([]byte, error) {
 	return nil, err
 }
 
-// ReadContent 读取文件文本内容用于 ingest / 上下文注入
+// ReadContent 读取文件文本内容用于 ingest / 上下文注入。
+// docx 自动抽取正文（Word OOXML）；其他类型按 UTF-8 处理。
 func (s *memStore) ReadContent(f models.FileMeta) (string, bool) {
 	b, err := s.ReadBytes(f)
 	if err != nil {
 		return "", false
+	}
+	if strings.EqualFold(filepath.Ext(f.Name), ".docx") {
+		return textract.DocxText(b)
 	}
 	return string(b), true
 }

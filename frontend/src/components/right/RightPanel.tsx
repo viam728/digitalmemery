@@ -67,7 +67,7 @@ function PreviewPanel({ file, content }: { file: FileMeta | null; content: strin
   useEffect(() => {
     setBlobUrl('')
     if (!file) return
-    if (file.kind === 'image' || file.kind === 'pdf' || file.kind === 'docx') {
+    if (file.kind === 'image' || file.kind === 'pdf') {
       let alive = true
       api.getFileBlob(file.id).then((b) => { if (alive) setBlobUrl(URL.createObjectURL(b)) })
       return () => { alive = false; if (blobUrl) URL.revokeObjectURL(blobUrl) }
@@ -85,8 +85,12 @@ function PreviewPanel({ file, content }: { file: FileMeta | null; content: strin
   if (file.kind === 'pdf' && blobUrl) {
     return <iframe src={blobUrl} title={file.name} className="w-full h-72 rounded-lg border border-white/10 bg-white" />
   }
-  if (file.kind === 'pdf' || file.kind === 'docx') {
-    return <Placeholder text={file.kind === 'pdf' ? 'PDF 预览（使用浏览器内嵌查看器）' : 'Office 文档预览暂未支持，请下载后查看。'} />
+  if (file.kind === 'pdf') {
+    return <Placeholder text="PDF 预览（使用浏览器内嵌查看器）" />
+  }
+  // docx：后端已抽取正文（content）；解析失败或为空时提示下载
+  if (file.kind === 'docx' && !content) {
+    return <Placeholder text="Word 文档暂无文本内容（解析失败或为空），可下载后查看。" />
   }
 
   if (!content) return <Placeholder text="该文件暂无文本内容可预览（未入库或为二进制）。" />

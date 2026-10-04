@@ -147,6 +147,7 @@ digitalmemery/
       ├─ models/              # 数据结构定义
       ├─ pgpool/              # 纯标准库 PostgreSQL 客户端
       ├─ rag/                 # RAG：分块/Embedding/向量库
+      ├─ textract/            # Office（docx）纯文本抽取
       └─ storage/             # 存储门面（pgStore / memStore）
 ```
 
@@ -223,6 +224,12 @@ digitalmemery/
 - 单连接 + 互斥（低并发场景足够）；**不支持** SSL/TLS、扩展查询协议（本项目用不到）；不支持 SCRAM 认证（compose 已显式配 `POSTGRES_HOST_AUTH_METHOD: md5` 配合）。
 - 所有值经单引号转义（值均由应用自身控制）。
 
+### 5.10 `internal/textract` — Office 文档抽取
+
+- `DocxText([]byte)`：解压 docx（zip）→ 解析 `word/document.xml` → 按段落拼接纯文本，零第三方依赖。
+- 接入点：资料库 `ReadContent`（入库/@引用/收件箱自动应答读取）、`/api/files/{id}/content`（docx 直接给文本预览）、启动引导 `bootstrapIndex`。
+- PDF 暂不支持（格式复杂，保留原文下载），由 roadmap 跟踪。
+
 ---
 
 ## 6. 前端模块详解
@@ -263,7 +270,7 @@ digitalmemery/
 | POST | `/api/conversations/{id}/messages/stream` | **SSE 对话** `{content, refs?, mode?}`；事件：steps/delta/usage/remaining/done/error |
 | GET | `/api/files` | 资料库列表 |
 | POST | `/api/files/upload` | 上传文件（multipart `file`） |
-| GET | `/api/files/{id}/content` | 预览内容（文本 UTF-8 / 二进制原始字节） |
+| GET | `/api/files/{id}/content` | 预览内容（文本 UTF-8 / docx 抽取正文 / 其他二进制原始字节） |
 | GET | `/api/files/{id}/download` | 附件下载 |
 | PATCH | `/api/files/{id}` | 改名（仅「我分享的」） |
 | DELETE | `/api/files/{id}` | 删除（仅「我分享的」） |
@@ -370,7 +377,7 @@ POST /api/workspaces/{id}/run {prompt}
 ```
 POST /api/inbox/upload → 保存 + AddInbox(status=pending) → 立即响应（不阻塞）
   └─（异步）autoReplyInbox：
-       status=replying → 读文本类文件正文（二进制仅留言）→ RAG 命中
+       status=replying → 读文本类文件正文（docx 抽取、其余二进制仅留言）→ RAG 命中
        → SoulSystemPrompt → 生成回复 → status=replied + Reply/RepliedAt 落库
        失败 → status=failed；成功后按用量扣减上传者 Key 额度
 前端 InboxView：上传后轮询刷新，展示「正在阅读并自动回复… / 自动回复 / 失败」三态
@@ -458,9 +465,9 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 | # | 现状 | 影响 | 建议 |
 |---|---|---|---|
 | 1 | 文件未按访客隔离（「我分享的」上传件同库可见） | 访客间文件内容可能互见 | 为 `FileMeta` 增加 `ownerKey` 并做访问过滤（M5） |
-| 2 | PDF/DOCX 不做文本抽取 | RAG 仅覆盖 md 版全文；PDF 仅下载 | 接 `ledongthuc/pdf` 或外部解析服务 |
+| 2 | PDF 不做文本抽取（docx 已支持） | RAG 仅覆盖 md 版全文；PDF 仅下载 | 接 PDF 解析库或外部解析服务 |
 | 3 | pgpool 不支持 SCRAM & SSL | 连默认配置的 PG14+ 会降级内存 | 补 SCRAM-SHA-256 或文档化 md5 要求（compose 已配 md5） |
-| 4 | SSE 无心跳 | 长连接经代理可能被缓冲/断开 | 增加 `: ping` 注释帧（15s） |
+| 4 | 访客 Key 永久有效（无 TTL） | 泄露后可被长期使用 | 增加过期时间/重置策略（后续） |
 | 5 | 记忆系统 v1 | 人设/RAG 在线；无访客维度记忆 | 会话/收件箱记忆隔离 + 摘要记忆（M5） |
 | 6 | 收件箱自动应答不生成产物文件 | 回复仅在收件箱展示 | 生成 `匹配度报告.md` 并发布（见 12 节） |
 | 7 | mock 模型为固定腔调 | 开发演示可读性一般 | 可让 mock 也走灵魂模板（低成本） |
@@ -483,6 +490,11 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 
 - 新增：**访客维度会话/工作区隔离**——`Conversation`/`Workspace` 增加 `OwnerKey`；列表/读写/运行仅限归属者，越权一律 404；PG `conversations` 表幂等新增 `owner_key` 列。
 - 修复：`UpdateConversation` 变量重声明（`ok := true` → `ok = true`）。
+
+**2026-10-04（第三波）**
+
+- 新增：**docx（Word）纯文本抽取**（`internal/textract`）——资料库上传的 docx 可入库/检索/引用；右栏预览直接显示正文；收件箱 docx 投递可被自动应答阅读。
+- 新增：**SSE 心跳**——对话流每 15s 发送注释帧 `: ping`，防隧道/代理断开长连接（前端解析器自动忽略）。（已在 35s 长流上实测观察到 2 次心跳）
 
 **更早**：M0 框架 → M1 对话（SSE/Key 计量/模型选择）→ M2 资料库（上传/预览/入库/RAG）→ M3 Agent 工作区（引用挂载/产物发布/Response details）→ Docker/PG/隧道部署 → 脚本排障（编码/路径/异步引导）。
 
