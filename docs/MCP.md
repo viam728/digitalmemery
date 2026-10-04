@@ -67,6 +67,14 @@ curl -s -X POST http://localhost:8080/mcp \
 | `get_profile` | 个人主页数据（技能/项目/时间线/简历/联系方式） | — |
 | `submit_inbox` | 向收件箱投递材料（外部入口） | `content`（必需）、`name?`、`note?`、`fileName?` |
 | `run_task` | 以 Agent 方式执行任务（生成 plan/result） | `prompt`（必需）、`refs?` |
+| `kb_list_spaces` | JasperKB 知识空间列表 | — |
+| `kb_get_tree` | JasperKB 文档树（博客内容源） | `space`（必需） |
+| `kb_search` | 在 JasperKB 中检索（标题 + 正文） | `query`（必需）、`space?` |
+| `kb_get_doc` | 读取 JasperKB 文档全文 | `id`（必需） |
+| `kb_create_doc` | 新建文档（草稿） | `space`、`title`（必需）、`parentId?`、`content?`、`tags?` |
+| `kb_update_doc` | 修改文档（改博客稿件） | `id`（必需）、`title?`、`content?`、`tags?`、`note?` |
+| `kb_publish_doc` | 发布到博客公开接口 | `id`（必需）、`slug?` |
+| `kb_unpublish_doc` | 撤稿 | `id`（必需） |
 
 资源（resources）：资料库文件以 `jasperlee://materials/{id}` 暴露，支持 `resources/list` 与 `resources/read`。
 
@@ -82,3 +90,20 @@ curl -s -X POST http://localhost:8080/mcp \
 
 - stdio 传输天然进程内隔离，推荐桌面宿主使用。
 - HTTP `/mcp` 与主应用共用端口、**不带独立鉴权**：请仅在本机/内网暴露，或置于带鉴权的反向代理之后。
+
+## 7. JasperKB 知识库联动（数字分身改博客）
+
+数字分身接入 [JasperKB](https://github.com/viam728/jasperkb)（独立知识库服务）的 MCP，
+把「改博客」能力代理为一组 `kb_*` 工具（与知识库工具同名同参）：
+
+- 配置（`backend/.env`）：`KB_URL`（默认 `http://localhost:8123`）、`KB_TOKEN`（与 JasperKB 的 `data/token.txt` 一致）。
+- 典型链路：`kb_search` / `kb_get_tree` 找稿 → `kb_update_doc` 改正文 → `kb_publish_doc` 发布；发布后博客与公开接口（`/api/public/posts`）立即可见。
+- 知识库不可达或未配置时，`kb_*` 工具返回明确错误提示（鉴权失败 / 连接失败），不影响其他工具。
+
+示例（经数字分身改稿并发布）：
+
+```bash
+curl -s -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"kb_update_doc","arguments":{"id":"n-xxxx","content":"新正文…","note":"改稿"}}}'
+```

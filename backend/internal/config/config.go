@@ -66,6 +66,10 @@ type Config struct {
 	ModelHostIP string
 	// AdminPassword 管理员入口密码（暂定 feng，可通过 .env 覆盖）
 	AdminPassword string
+	// KBURL JasperKB 知识库服务地址（数字分身改博客，默认本机 8123）
+	KBURL string
+	// KBToken JasperKB 访问令牌（与服务端 data/token.txt 一致）
+	KBToken string
 	// PGHost PostgreSQL 主机（DATABASE_URL 优先时由其填充）
 	PGHost string
 	// PGPort PostgreSQL 端口（string 简化）
@@ -94,6 +98,8 @@ func Load() *Config {
 		ModelList:      env("MODEL_LIST", ""),
 		ModelHostIP:    env("MODEL_HOST_IP", ""),
 		AdminPassword:  env("ADMIN_PASSWORD", "feng"),
+		KBURL:          env("KB_URL", "http://localhost:8123"),
+		KBToken:        env("KB_TOKEN", ""),
 		PGHost:         env("PGHOST", "localhost"),
 		PGPort:         env("PGPORT", "5432"),
 		PGUser:         env("PGUSER", "jasper"),

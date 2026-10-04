@@ -30,9 +30,10 @@ func schema(props map[string]any, required ...string) map[string]any {
 	return m
 }
 
-// toolDefs 全部工具：最小功能组成覆盖「问答 / 检索 / 资料 / 人设 / 投递 / Agent 任务」。
+// toolDefs 全部工具：覆盖「问答 / 检索 / 资料 / 人设 / 投递 / Agent 任务」，
+// 以及 JasperKB 知识库联动（kb_*，数字分身改博客）。
 func toolDefs() []Tool {
-	return []Tool{
+	tools := []Tool{
 		{
 			Name:        "ask_jasper",
 			Description: "向李俊锋的数字分身提问：基于个人知识库（RAG）+ 人设作答，返回完整回答。",
@@ -86,6 +87,92 @@ func toolDefs() []Tool {
 			}, "prompt"),
 		},
 	}
+	return append(tools, kbToolDefs()...)
+}
+
+// kbToolDefs JasperKB 工具定义（数字分身改博客：经 MCP 代理到知识库服务端，与知识库工具同名同参）。
+func kbToolDefs() []Tool {
+	return []Tool{
+		{
+			Name:        "kb_list_spaces",
+			Description: "列出 JasperKB 知识空间（博客内容源）。",
+			InputSchema: schema(map[string]any{}),
+		},
+		{
+			Name:        "kb_get_tree",
+			Description: "查看 JasperKB 某空间下的文档树（文件夹 / 文档，含 id、状态与 slug）。",
+			InputSchema: schema(map[string]any{
+				"space": map[string]any{"type": "string", "description": "空间 id 或 key"},
+			}, "space"),
+		},
+		{
+			Name:        "kb_search",
+			Description: "在 JasperKB 知识库中做关键词检索（标题 + 正文），返回命中文档与片段。",
+			InputSchema: schema(map[string]any{
+				"query": map[string]any{"type": "string", "description": "关键词"},
+				"space": map[string]any{"type": "string", "description": "限定空间（可选，id 或 key）"},
+			}, "query"),
+		},
+		{
+			Name:        "kb_get_doc",
+			Description: "读取 JasperKB 文档全文（含状态 / slug / 标签 / 修订数）。",
+			InputSchema: schema(map[string]any{
+				"id": map[string]any{"type": "string", "description": "文档节点 id"},
+			}, "id"),
+		},
+		{
+			Name:        "kb_create_doc",
+			Description: "在 JasperKB 新建文档（草稿）。",
+			InputSchema: schema(map[string]any{
+				"space":    map[string]any{"type": "string", "description": "空间 id 或 key"},
+				"parentId": map[string]any{"type": "string", "description": "父文件夹节点 id（可选）"},
+				"title":    map[string]any{"type": "string", "description": "文档标题"},
+				"content":  map[string]any{"type": "string", "description": "Markdown 正文（可选）"},
+				"tags":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "标签（可选）"},
+			}, "space", "title"),
+		},
+		{
+			Name:        "kb_update_doc",
+			Description: "修改 JasperKB 文档（标题 / 正文 / 标签）——「数字分身改博客」的正文修改走这里。",
+			InputSchema: schema(map[string]any{
+				"id":      map[string]any{"type": "string", "description": "文档节点 id"},
+				"title":   map[string]any{"type": "string", "description": "新标题（可选）"},
+				"content": map[string]any{"type": "string", "description": "新正文（可选）"},
+				"tags":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "新标签（可选）"},
+				"note":    map[string]any{"type": "string", "description": "修改说明（可选）"},
+			}, "id"),
+		},
+		{
+			Name:        "kb_publish_doc",
+			Description: "发布 JasperKB 文档到公开接口（博客可见）——「数字分身改博客」的发布走这里。",
+			InputSchema: schema(map[string]any{
+				"id":   map[string]any{"type": "string", "description": "文档节点 id"},
+				"slug": map[string]any{"type": "string", "description": "对外 URL 标识（可选）"},
+			}, "id"),
+		},
+		{
+			Name:        "kb_unpublish_doc",
+			Description: "撤稿（从公开接口下线，保留 slug 占用）。",
+			InputSchema: schema(map[string]any{
+				"id": map[string]any{"type": "string", "description": "文档节点 id"},
+			}, "id"),
+		},
+	}
+}
+
+// kbProxy 通用代理：把工具调用转发给 JasperKB 的 MCP（HTTP），返回其文本结果。
+func kbProxy(name string) toolHandler {
+	return func(s *Server, raw json.RawMessage) (string, error) {
+		args := map[string]any{}
+		if strings.TrimSpace(string(raw)) != "" {
+			if err := json.Unmarshal(raw, &args); err != nil {
+				return "", fmt.Errorf("参数解析失败：%v", err)
+			}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		return s.c.KB.CallTool(ctx, name, args)
+	}
 }
 
 type toolHandler func(*Server, json.RawMessage) (string, error)
@@ -98,6 +185,15 @@ var toolHandlers = map[string]toolHandler{
 	"get_profile":      (*Server).toolGetProfile,
 	"submit_inbox":     (*Server).toolSubmitInbox,
 	"run_task":         (*Server).toolRunTask,
+	// JasperKB 知识库（数字分身改博客）：经 MCP 代理到知识库服务
+	"kb_list_spaces":   kbProxy("kb_list_spaces"),
+	"kb_get_tree":      kbProxy("kb_get_tree"),
+	"kb_search":        kbProxy("kb_search"),
+	"kb_get_doc":       kbProxy("kb_get_doc"),
+	"kb_create_doc":    kbProxy("kb_create_doc"),
+	"kb_update_doc":    kbProxy("kb_update_doc"),
+	"kb_publish_doc":   kbProxy("kb_publish_doc"),
+	"kb_unpublish_doc": kbProxy("kb_unpublish_doc"),
 }
 
 // callTool 执行 tools/call；执行错误按 MCP 约定放进 result.isError。

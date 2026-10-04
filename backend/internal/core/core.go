@@ -12,6 +12,7 @@ import (
 
 	"jasperlee/backend/internal/agent"
 	"jasperlee/backend/internal/config"
+	"jasperlee/backend/internal/kb"
 	"jasperlee/backend/internal/llm"
 	"jasperlee/backend/internal/rag"
 	"jasperlee/backend/internal/storage"
@@ -24,6 +25,8 @@ type Core struct {
 	RAG   *rag.Service
 	LLM   *llm.Client
 	Agent *agent.WorkspaceSvc
+	// KB JasperKB 知识库客户端（数字分身改博客）
+	KB *kb.Client
 }
 
 // New 装配全部服务并触发启动期副作用（后台 goroutine）。
@@ -45,6 +48,7 @@ func NewWithOptions(cfg *config.Config, opt Options) *Core {
 		RAG:   rag.New(cfg.RAGProvider, cfg.DataDir, cfg.ModelAPIKey, cfg.ModelBaseURL),
 		LLM:   llmClient,
 		Agent: agent.NewWorkspaceSvc(llmClient),
+		KB:    kb.New(cfg.KBURL, cfg.KBToken),
 	}
 	c.initModelDefaults()
 	if opt.Background {

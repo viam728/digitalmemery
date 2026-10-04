@@ -158,7 +158,7 @@ func (s *Server) initialize() map[string]any {
 			"resources": map[string]any{"subscribe": false, "listChanged": false},
 		},
 		"serverInfo":   map[string]any{"name": serverName, "version": serverVersion},
-		"instructions": "JasperLee 数字分身：可用工具查询个人主页、检索/阅读资料库、向收件箱投递、运行 Agent 任务。",
+		"instructions": "JasperLee 数字分身：可用工具查询个人主页、检索/阅读资料库、向收件箱投递、运行 Agent 任务；并通过 JasperKB 知识库工具（kb_*）起草 / 修改 / 发布博客文章。",
 	}
 }
 

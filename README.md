@@ -62,7 +62,8 @@ curl -s -X POST http://localhost:8080/mcp -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-- 能力：7 个工具（问答 / 检索 / 资料 / 人设 / 投递 / Agent 任务）+ 资料库资源。
+- 能力：15 个工具（问答 / 检索 / 资料 / 人设 / 投递 / Agent 任务 + JasperKB 知识库联动 kb_*）+ 资料库资源。
+- 知识库联动：kb_* 工具把「数字分身改博客」代理到 JasperKB（KB_URL / KB_TOKEN 配置；改稿 → 发布 → 博客可见）。
 - 宿主配置（mcpServers）与协议细节见 [MCP 对接文档](docs/MCP.md)。
 
 ## Docker 开发和部署
@@ -139,7 +140,8 @@ docker compose down -v     # 停止并清空数据卷
 - [x] M4 数字分身 v1：人设/SKILL + RAG 引导 + 收件箱自动应答 + 会话自动命名 + 访客数据隔离（会话/工作区/文件/收件箱/产物）
 - [x] M5 对外挂载：MCP 服务（stdio + HTTP；7 工具 + 资源；零依赖）
 - [x] M6 平台看板：媒体/博客/练习平台账号与链接（分类卡片 + 双击编辑）
-- [ ] M7 记忆增强：PDF 文本抽取、记忆系统（规划中）
+- [x] M7 知识库联动：接入 JasperKB 知识库服务 MCP（kb_* 工具代理；数字分身改博客）
+- [ ] M8 记忆增强：PDF 文本抽取、记忆系统（规划中）
 
 ## 端到端网络部署（开源内网穿透）
 不买服务器，用开源隧道把本机服务暴露到公网（cloudflared 优先，localtunnel 兜底）：
