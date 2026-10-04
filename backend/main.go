@@ -88,6 +88,12 @@ func main() {
 	// 数字分身简介
 	mux.HandleFunc("GET /api/avatar", h.GetAvatar)
 
+	// 平台看板（公开浏览；新增/编辑/删除仅管理员）
+	mux.HandleFunc("GET /api/social", h.ListSocial)
+	mux.HandleFunc("POST /api/social", h.AddSocial)
+	mux.HandleFunc("PATCH /api/social/{id}", h.UpdateSocial)
+	mux.HandleFunc("DELETE /api/social/{id}", h.DeleteSocial)
+
 	// 管理员入口（密码 feng，可通过 .env 的 ADMIN_PASSWORD 修改）
 	mux.HandleFunc("POST /api/admin/login", h.AdminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.AdminStats)

@@ -31,6 +31,7 @@ type memStore struct {
 	workspaces    map[string]models.Workspace
 	keys          map[string]models.ApiKey // key -> ApiKey
 	inbox         []models.InboxItem       // 招聘者投递的收件箱条目
+	social        []models.SocialLink      // 平台看板条目（可编辑）
 }
 
 // newMemStore 创建内存+JSON降级存储，加载持久化数据；无数据时写入种子数据与演示 Key
@@ -42,6 +43,7 @@ func newMemStore(dataDir string) *memStore {
 		conversations: seedConversations(),
 		files:         seedFiles(),
 		keys:          make(map[string]models.ApiKey),
+		social:        seedSocialLinks(),
 	}
 	s.load()
 	if len(s.keys) == 0 {
@@ -64,6 +66,7 @@ func (s *memStore) load() {
 		Files         []models.FileMeta        `json:"files"`
 		Keys          map[string]models.ApiKey `json:"keys"`
 		Inbox         []models.InboxItem       `json:"inbox"`
+		Social        []models.SocialLink      `json:"social"`
 	}
 	if json.Unmarshal(b, &data) == nil {
 		if len(data.Conversations) > 0 {
@@ -87,6 +90,19 @@ func (s *memStore) load() {
 		if len(data.Inbox) > 0 {
 			s.inbox = data.Inbox
 		}
+		// 平台看板：合并持久化数据与种子（保证预置平台项始终存在）
+		if len(data.Social) > 0 {
+			s.social = data.Social
+			seenSocial := make(map[string]bool, len(s.social))
+			for _, l := range s.social {
+				seenSocial[l.ID] = true
+			}
+			for _, sl := range seedSocialLinks() {
+				if !seenSocial[sl.ID] {
+					s.social = append(s.social, sl)
+				}
+			}
+		}
 	}
 }
 
@@ -97,6 +113,7 @@ func (s *memStore) persist() {
 		"files":         s.files,
 		"keys":          s.keys,
 		"inbox":         s.inbox,
+		"social":        s.social,
 	})
 	_ = os.WriteFile(s.file(), b, 0o644)
 }
@@ -429,6 +446,45 @@ func (s *memStore) SetInboxReply(id, reply, status string) (models.InboxItem, bo
 		}
 	}
 	return models.InboxItem{}, false
+}
+
+// ---- 平台看板 ----
+
+// ListSocialLinks 平台看板条目（保持写入顺序）
+func (s *memStore) ListSocialLinks() []models.SocialLink {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]models.SocialLink(nil), s.social...)
+}
+
+// UpsertSocialLink 新增或更新一条平台看板条目
+func (s *memStore) UpsertSocialLink(l models.SocialLink) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.social {
+		if s.social[i].ID == l.ID {
+			s.social[i] = l
+			s.persist()
+			return true
+		}
+	}
+	s.social = append(s.social, l)
+	s.persist()
+	return true
+}
+
+// DeleteSocialLink 删除一条平台看板条目
+func (s *memStore) DeleteSocialLink(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.social {
+		if s.social[i].ID == id {
+			s.social = append(s.social[:i], s.social[i+1:]...)
+			s.persist()
+			return true
+		}
+	}
+	return false
 }
 
 // ---- Key 相关 ----

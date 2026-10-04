@@ -73,6 +73,11 @@ CREATE TABLE IF NOT EXISTS rag_chunks(
   vec jsonb NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_file ON rag_chunks(file_id);
+CREATE TABLE IF NOT EXISTS social_links(
+  id text PRIMARY KEY,
+  data jsonb NOT NULL,
+  ord int NOT NULL DEFAULT 0
+);
 `
 
 // newPostgres 连接 Postgres 并建表。ok=false 表示不可用（调用方应降级）。
@@ -121,6 +126,11 @@ func (s *pgStore) seedIfEmpty() {
 	if s.count("api_keys") == 0 {
 		k := s.NewKey("演示访客", 1_000_000, true)
 		log.Printf("[storage] seeded demo key %s", k.Key)
+	}
+	if s.count("social_links") == 0 {
+		for _, l := range seedSocialLinks() {
+			s.UpsertSocialLink(l)
+		}
 	}
 }
 
@@ -508,6 +518,50 @@ func (s *pgStore) SetInboxReply(id, reply, status string) (models.InboxItem, boo
 	}
 	s.AddInbox(it)
 	return it, true
+}
+
+// ---- 平台看板 ----
+
+func scanSocialLink(r []any) models.SocialLink {
+	var l models.SocialLink
+	if json.Unmarshal([]byte(pgpool.Str(r[0])), &l) != nil {
+		return models.SocialLink{}
+	}
+	return l
+}
+
+// ListSocialLinks 平台看板条目（按 ord 排序）
+func (s *pgStore) ListSocialLinks() []models.SocialLink {
+	rows, err := s.db.Query("SELECT data FROM social_links ORDER BY ord ASC, id ASC")
+	if err != nil || len(rows) == 0 {
+		return []models.SocialLink{}
+	}
+	out := make([]models.SocialLink, 0, len(rows))
+	for _, r := range rows {
+		if l := scanSocialLink(r); l.ID != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// UpsertSocialLink 新增或更新一条平台看板条目（新增时 ord 递增）
+func (s *pgStore) UpsertSocialLink(l models.SocialLink) bool {
+	if rows, err := s.db.Query("SELECT id FROM social_links WHERE id=" + pgpool.Quote(l.ID)); err == nil && len(rows) > 0 {
+		return s.db.Exec("UPDATE social_links SET data="+pgpool.Quote(mustJSON(l))+" WHERE id="+pgpool.Quote(l.ID)) == nil
+	}
+	ord := 0
+	if rs, err := s.db.Query("SELECT COALESCE(MAX(ord),0) FROM social_links"); err == nil && len(rs) > 0 {
+		ord = int(pgpool.ParseInt64(pgpool.Str(rs[0][0])))
+	}
+	return s.db.Exec(fmt.Sprintf("INSERT INTO social_links(id,data,ord) VALUES(%s,%s::jsonb,%d)",
+		pgpool.Quote(l.ID), pgpool.Quote(mustJSON(l)), ord+1)) == nil
+}
+
+// DeleteSocialLink 删除一条平台看板条目
+func (s *pgStore) DeleteSocialLink(id string) bool {
+	n, err := s.db.ExecCount(fmt.Sprintf("DELETE FROM social_links WHERE id=%s", pgpool.Quote(id)))
+	return err == nil && n > 0
 }
 
 // ---- Key ----

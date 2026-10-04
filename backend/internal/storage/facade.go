@@ -43,6 +43,9 @@ type storeImpl interface {
 	SetInboxReply(id, reply, status string) (models.InboxItem, bool)
 	DeleteInbox(id string) bool
 	DeleteInboxOnDisk(it models.InboxItem) error
+	ListSocialLinks() []models.SocialLink
+	UpsertSocialLink(l models.SocialLink) bool
+	DeleteSocialLink(id string) bool
 	GetKey(key string) (models.ApiKey, bool)
 	NewKey(label string, quota int64, lib bool) models.ApiKey
 	ListKeys() []models.ApiKey
@@ -102,7 +105,12 @@ func (s *Store) SetInboxReply(id, reply, status string) (models.InboxItem, bool)
 	return s.impl.SetInboxReply(id, reply, status)
 }
 func (s *Store) DeleteInboxOnDisk(it models.InboxItem) error { return s.impl.DeleteInboxOnDisk(it) }
-func (s *Store) GetKey(key string) (models.ApiKey, bool)     { return s.impl.GetKey(key) }
+func (s *Store) ListSocialLinks() []models.SocialLink {
+	return s.impl.ListSocialLinks()
+}
+func (s *Store) UpsertSocialLink(l models.SocialLink) bool { return s.impl.UpsertSocialLink(l) }
+func (s *Store) DeleteSocialLink(id string) bool           { return s.impl.DeleteSocialLink(id) }
+func (s *Store) GetKey(key string) (models.ApiKey, bool)   { return s.impl.GetKey(key) }
 func (s *Store) NewKey(label string, q int64, lib bool) models.ApiKey {
 	return s.impl.NewKey(label, q, lib)
 }

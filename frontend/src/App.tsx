@@ -7,6 +7,7 @@ import ChatView from './components/Chat/ChatView'
 import LibraryView from './components/Library/LibraryView'
 import WorkspaceView from './components/Workspace/WorkspaceView'
 import AvatarView from './components/Avatar/AvatarView'
+import BoardView from './components/Board/BoardView'
 import InboxView from './components/Inbox/InboxView'
 import AdminView from './components/Admin/AdminView'
 import RightPanel from './components/right/RightPanel'
@@ -19,13 +20,15 @@ export default function App() {
   const refreshConversations = useApp((s) => s.refreshConversations)
   const refreshInbox = useApp((s) => s.refreshInbox)
   const refreshAvatar = useApp((s) => s.refreshAvatar)
+  const refreshSocial = useApp((s) => s.refreshSocial)
 
   useEffect(() => {
     verifyKey()
     refreshConversations()
     refreshInbox()
     refreshAvatar()
-  }, [verifyKey, refreshConversations, refreshInbox, refreshAvatar])
+    refreshSocial()
+  }, [verifyKey, refreshConversations, refreshInbox, refreshAvatar, refreshSocial])
 
   if (!key) return <KeyGate />
 
@@ -40,6 +43,7 @@ export default function App() {
           {view === 'library' && <LibraryView />}
           {view === 'workspace' && <WorkspaceView />}
           {view === 'avatar' && <AvatarView />}
+          {view === 'board' && <BoardView />}
           {view === 'inbox' && <InboxView />}
           {view === 'admin' && <AdminView />}
         </main>

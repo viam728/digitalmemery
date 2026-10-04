@@ -143,6 +143,18 @@ export interface Avatar {
   contact?: string[]
 }
 
+// 平台看板
+/** 平台 / 博客 / 练习平台账号条目 */
+export interface SocialLink {
+  id: string
+  platform: string
+  /** code | community | blog | practice | social */
+  category: string
+  account: string
+  url: string
+  note: string
+}
+
 // 视图
 /** 主视图类型 */
-export type View = 'chat' | 'library' | 'workspace' | 'avatar' | 'inbox' | 'admin'
+export type View = 'chat' | 'library' | 'workspace' | 'avatar' | 'inbox' | 'board' | 'admin'

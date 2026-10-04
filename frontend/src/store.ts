@@ -1,6 +1,6 @@
 // 全局应用状态（zustand）——只用真实后端数据，无 mock。
 import { create } from 'zustand'
-import type { Conversation, ConversationKind, Message, FileMeta, RagHit, Workspace, View, InboxItem, Avatar } from './types'
+import type { Conversation, ConversationKind, Message, FileMeta, RagHit, Workspace, View, InboxItem, Avatar, SocialLink } from './types'
 import type { AdminStats, ApiKeyInfo } from './api'
 import { api, streamChat, getKey, setKey, getAdminToken, setAdminToken } from './api'
 
@@ -30,6 +30,7 @@ interface AppState {
   previewContent: string
   inbox: InboxItem[]
   avatar: Avatar | null
+  social: SocialLink[]
   // 管理员
   adminToken: string
   isAdmin: boolean
@@ -67,6 +68,10 @@ interface AppState {
   uploadInbox: (file: File, name: string, note: string) => Promise<boolean>
   deleteInboxItem: (id: string) => void
   refreshAvatar: () => void
+  refreshSocial: () => void
+  saveSocialLink: (id: string, patch: Partial<SocialLink>) => Promise<boolean>
+  addSocialLink: (body: Omit<SocialLink, 'id'>) => Promise<boolean>
+  deleteSocialLink: (id: string) => void
   renameFile: (id: string, name: string) => void
   deleteFile: (id: string) => void
   adminLogin: (password: string) => Promise<boolean>
@@ -113,6 +118,7 @@ export const useApp = create<AppState>((set, get) => ({
   previewContent: '',
   inbox: [],
   avatar: null,
+  social: [],
   adminToken: getAdminToken(),
   isAdmin: false,
   adminStats: null,
@@ -445,6 +451,40 @@ export const useApp = create<AppState>((set, get) => ({
       (a) => {
         if (a) set({ avatar: a })
       },
+      () => {},
+    )
+  },
+
+  refreshSocial: () => {
+    api.listSocial().then(
+      (list) => set({ social: list ?? [] }),
+      () => set({ social: [] }),
+    )
+  },
+
+  saveSocialLink: async (id, patch) => {
+    try {
+      const updated = await api.updateSocial(id, patch)
+      set((s) => ({ social: s.social.map((l) => (l.id === id ? updated : l)) }))
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  addSocialLink: async (body) => {
+    try {
+      const created = await api.addSocial(body)
+      set((s) => ({ social: [...s.social, created] }))
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  deleteSocialLink: (id) => {
+    api.deleteSocial(id).then(
+      () => set((s) => ({ social: s.social.filter((l) => l.id !== id) })),
       () => {},
     )
   },

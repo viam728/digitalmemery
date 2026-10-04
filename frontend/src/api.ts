@@ -8,6 +8,7 @@ import type {
   Workspace,
   InboxItem,
   Avatar,
+  SocialLink,
 } from './types'
 
 const BASE = '/api'
@@ -115,6 +116,14 @@ export const api = {
   downloadInbox: async (id: string): Promise<Blob> => (await fetchRaw(`/inbox/${id}/download`)).blob(),
   // 个人主页
   getAvatar: (): Promise<Avatar> => http('/avatar'),
+  // 平台看板（公开浏览；新增/编辑/删除需管理员 token）
+  listSocial: (): Promise<SocialLink[]> => http('/social'),
+  addSocial: (body: Omit<SocialLink, 'id'>): Promise<SocialLink> =>
+    adminHttp('/social', { method: 'POST', body: JSON.stringify(body) }),
+  updateSocial: (id: string, patch: Partial<SocialLink>): Promise<SocialLink> =>
+    adminHttp(`/social/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteSocial: (id: string): Promise<{ deleted: boolean }> =>
+    adminHttp(`/social/${id}`, { method: 'DELETE' }),
   // RAG
   ragQuery: (q: string): Promise<RagHit[]> =>
     http('/rag/query', { method: 'POST', body: JSON.stringify({ query: q }) }),

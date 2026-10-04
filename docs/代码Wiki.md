@@ -185,6 +185,7 @@ digitalmemery/
 | `inbox.go` | 收件箱上传/列表/下载/删除 + **`autoReplyInbox` 自动应答** |
 | `artifacts.go` | Agent 产物发布（工作区 `output/` → 资料库同一行记录 + `IsArtifact`）+ `ListArtifacts` |
 | `avatar.go` | 数字分身主页数据（李俊锋简历/技能/项目/时间线） |
+| `social.go` | 平台看板 CRUD（公开读 / 管理员写） |
 | `models.go` | 可用模型列表（缓存 > `MODEL_LIST` > `MODEL_NAME`）与切换 |
 | `readonly.go` | 只读判定小工具（避免循环依赖的接口包装） |
 
@@ -264,6 +265,7 @@ digitalmemery/
 | `components/Library/LibraryView.tsx` + `fileDisplay.ts` | 资料库：拖拽/点击上传、表格、入库按钮、预览、语义检索 |
 | `components/Workspace/WorkspaceView.tsx` | Agent 工作区：新建任务（选引用）→ 运行 → 状态/用量/文件树（引用标黄、产出可预览） |
 | `components/Avatar/AvatarView.tsx` | 数字分身主页（技能/项目/时间线/简历下载） |
+| `components/Board/BoardView.tsx` | 平台看板（分类卡片 + 双击就地编辑；管理员可增删） |
 | `components/Inbox/InboxView.tsx` | 投递收件箱：上传 + **自动应答展示**（等待/回复/失败三态） |
 | `components/Admin/AdminView.tsx` | 管理员后台：看板 + Key 管理 + 收件箱 |
 | `components/right/RightPanel.tsx` | 右栏三模式：files（工作区树）/ preview（文件预览，含图片/PDF）/ rag（检索命中） |
@@ -304,6 +306,10 @@ digitalmemery/
 | POST | `/api/workspaces` | 新建工作区 `{title?, model?, refs?}` |
 | POST | `/api/workspaces/{id}/run` | 运行任务 `{prompt, expose?}` → `{workspace, artifacts}` |
 | GET | `/api/avatar` | 主页数据（无需鉴权） |
+| GET | `/api/social` | 平台看板（公开浏览） |
+| POST | `/api/social` | 新增平台条目（管理员） |
+| PATCH | `/api/social/{id}` | 编辑平台条目（管理员） |
+| DELETE | `/api/social/{id}` | 删除平台条目（管理员） |
 | POST | `/mcp` | **MCP 服务**（JSON-RPC 2.0：initialize / tools / resources，无独立鉴权） |
 | POST | `/api/admin/login` | 管理员登录 `{password}` → `{token}` |
 | GET | `/api/admin/stats` | 看板（运行时长/计数/额度） |
@@ -537,6 +543,12 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 - 架构：抽出传输无关的 `internal/core`（领域服务装配），`internal/api` 变薄，与新增的 `internal/mcp` 共享同一 core。
 - 新增：**MCP 服务**（零依赖 JSON-RPC 2.0）——stdio（`-mcp`）与 HTTP（`POST /mcp`）双传输；7 个工具 + 资料库资源；协议版本 2025-06-18。对接说明见 `docs/MCP.md`。
 - 人设数据（`AvatarData`）从 HTTP 层迁入 core，供两种传输复用。
+
+**2026-10-04（第七波）**
+
+- 新增：**平台看板**（媒体 / 博客 / 练习平台的账号与链接）——`GET /api/social` 公开浏览，管理员可增删改（`POST/PATCH/DELETE /api/social`）；23 个预置平台（代码/社区/博客/练习/社交五类）。
+- 前端新增「平台看板」栏目：分类卡片 + 品牌色徽标 + **双击就地编辑**（管理员）+ 「添加平台」。
+- 存储：memStore / pgStore 增加平台看板持久化（`store.json` 的 `social` / `social_links` 表）；补单元测试。
 
 **更早**：M0 框架 → M1 对话（SSE/Key 计量/模型选择）→ M2 资料库（上传/预览/入库/RAG）→ M3 Agent 工作区（引用挂载/产物发布/Response details）→ Docker/PG/隧道部署 → 脚本排障（编码/路径/异步引导）。
 

@@ -50,3 +50,30 @@ func TestMemStoreConversationIsolationFields(t *testing.T) {
 		t.Fatalf("会话归属丢失：%+v", got)
 	}
 }
+
+func TestMemStoreSocialLinks(t *testing.T) {
+	s := newMemStore(t.TempDir())
+	if len(s.ListSocialLinks()) == 0 {
+		t.Fatal("应有预置平台看板条目")
+	}
+	if !s.UpsertSocialLink(models.SocialLink{ID: "github", Platform: "GitHub", Category: "code", Account: "changed"}) {
+		t.Fatal("Upsert 应成功")
+	}
+	found := false
+	for _, l := range s.ListSocialLinks() {
+		if l.ID == "github" && l.Account == "changed" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("更新未生效")
+	}
+	if !s.DeleteSocialLink("github") {
+		t.Fatal("删除应成功")
+	}
+	for _, l := range s.ListSocialLinks() {
+		if l.ID == "github" {
+			t.Fatal("删除未生效")
+		}
+	}
+}

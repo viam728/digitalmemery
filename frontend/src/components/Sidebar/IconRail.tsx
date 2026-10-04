@@ -8,6 +8,7 @@ import {
   LifeBuoy,
   Upload,
   User,
+  LayoutGrid,
 } from 'lucide-react'
 import { useApp } from '../../store'
 import type { View } from '../../types'
@@ -20,6 +21,7 @@ interface RailItem {
 
 const ITEMS: RailItem[] = [
   { key: 'avatar', icon: User, label: '个人主页' },
+  { key: 'board', icon: LayoutGrid, label: '平台看板' },
   { key: 'chat', icon: MessageSquare, label: '问答' },
   { key: 'library', icon: FolderOpen, label: '资料库' },
   { key: 'workspace', icon: Sparkles, label: 'Agent 工作区' },
