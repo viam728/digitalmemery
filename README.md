@@ -116,8 +116,8 @@ docker compose down -v     # 停止并清空数据卷
 - [x] M1 对话：流式 SSE + Key 计量 + 模型选择器
 - [x] M2 资料库：列表/入库 + RAG 检索
 - [x] M3 Agent：任务编排 + 引用挂载 + Response details
-- [x] M4 数字分身 v1：人设/SKILL + RAG 引导 + 收件箱自动应答 + 会话自动命名
-- [ ] M5 记忆增强：访客维度会话隔离、PDF/DOCX 文本抽取、SSE 心跳（规划中）
+- [x] M4 数字分身 v1：人设/SKILL + RAG 引导 + 收件箱自动应答 + 会话自动命名 + 访客会话/工作区隔离
+- [ ] M5 记忆增强：PDF/DOCX 文本抽取、SSE 心跳、文件归属隔离（规划中）
 
 ## 端到端网络部署（开源内网穿透）
 不买服务器，用开源隧道把本机服务暴露到公网（cloudflared 优先，localtunnel 兜底）：

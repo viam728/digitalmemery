@@ -166,6 +166,18 @@ func (s *memStore) DeleteConversation(id string) bool {
 	return true
 }
 
+// GetConversation 按 ID 取会话（供 api 层做归属校验）
+func (s *memStore) GetConversation(id string) (models.Conversation, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, c := range s.conversations {
+		if c.ID == id {
+			return c, true
+		}
+	}
+	return models.Conversation{}, false
+}
+
 // AddMessage 追加一条消息
 func (s *memStore) AddMessage(m models.Message) {
 	s.mu.Lock()

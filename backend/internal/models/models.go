@@ -13,6 +13,8 @@ const (
 )
 
 // Conversation 会话
+//
+// OwnerKey 归属访客 Key：会话按访客隔离，列表/读写仅限归属者（对他人一律 404，不暴露存在性）。
 type Conversation struct {
 	ID        string           `json:"id"`
 	Title     string           `json:"title"`
@@ -20,6 +22,7 @@ type Conversation struct {
 	Pinned    bool             `json:"pinned"`
 	CreatedAt time.Time        `json:"createdAt"`
 	UpdatedAt time.Time        `json:"updatedAt"`
+	OwnerKey  string           `json:"ownerKey,omitempty"`
 }
 
 // Message 聊天消息
@@ -100,13 +103,16 @@ type RefContent struct {
 }
 
 // Workspace Agent 工作区
+//
+// OwnerKey 归属访客 Key：工作区同样按访客隔离（非归属者视为不存在）。
 type Workspace struct {
-	ID     string          `json:"id"`
-	Title  string          `json:"title"`
-	Status string          `json:"status"`
-	Model  string          `json:"model"`
-	Files  []WorkspaceFile `json:"files"`
-	Usage  *Usage          `json:"usage,omitempty"`
+	ID       string          `json:"id"`
+	Title    string          `json:"title"`
+	Status   string          `json:"status"`
+	Model    string          `json:"model"`
+	Files    []WorkspaceFile `json:"files"`
+	Usage    *Usage          `json:"usage,omitempty"`
+	OwnerKey string          `json:"ownerKey,omitempty"`
 }
 
 // Avatar 数字分身主页数据（给招聘者看的个人主页）

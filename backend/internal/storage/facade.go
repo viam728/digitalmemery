@@ -20,6 +20,7 @@ type storeImpl interface {
 	RenameConversation(id, title string) (models.Conversation, bool)
 	UpdateConversationPinned(id string, pinned bool) (models.Conversation, bool)
 	DeleteConversation(id string) bool
+	GetConversation(id string) (models.Conversation, bool)
 	ListMessages(id string) []models.Message
 	AddMessage(m models.Message)
 	ListFiles() []models.FileMeta
@@ -71,7 +72,10 @@ func (s *Store) RenameConversation(id, t string) (models.Conversation, bool) {
 func (s *Store) UpdateConversationPinned(id string, p bool) (models.Conversation, bool) {
 	return s.impl.UpdateConversationPinned(id, p)
 }
-func (s *Store) DeleteConversation(id string) bool       { return s.impl.DeleteConversation(id) }
+func (s *Store) DeleteConversation(id string) bool { return s.impl.DeleteConversation(id) }
+func (s *Store) GetConversation(id string) (models.Conversation, bool) {
+	return s.impl.GetConversation(id)
+}
 func (s *Store) ListMessages(id string) []models.Message { return s.impl.ListMessages(id) }
 func (s *Store) AddMessage(m models.Message)             { s.impl.AddMessage(m) }
 func (s *Store) ListFiles() []models.FileMeta            { return s.impl.ListFiles() }

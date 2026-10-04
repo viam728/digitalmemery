@@ -12,6 +12,8 @@ export interface Conversation {
   pinned?: boolean
   createdAt: string
   updatedAt: string
+  /** 归属访客 Key（会话按访客隔离） */
+  ownerKey?: string
 }
 
 /** 聊天消息角色 */

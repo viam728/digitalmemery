@@ -177,16 +177,25 @@ func (h *Handler) VerifyKey(w http.ResponseWriter, r *http.Request) {
 
 // ListConversations GET /api/conversations
 func (h *Handler) ListConversations(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
-	writeJSON(w, http.StatusOK, h.store.ListConversations())
+	// 会话按访客隔离：只返回归属当前 Key 的会话
+	out := []models.Conversation{}
+	for _, c := range h.store.ListConversations() {
+		if c.OwnerKey == k.Key {
+			out = append(out, c)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // CreateConversation POST /api/conversations
 func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
@@ -205,6 +214,7 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 		UpdatedAt: now,
 		Pinned:    true,
+		OwnerKey:  k.Key,
 	}
 	h.store.AddConversation(c)
 	writeJSON(w, http.StatusCreated, c)
@@ -213,11 +223,17 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 // UpdateConversation PATCH /api/conversations/{id} —— 改名 / 置顶
 // body: {"title"?: "...", "pinned"?: bool}，任选其一（同时给则都生效）
 func (h *Handler) UpdateConversation(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
 	id := r.PathValue("id")
+	// 会话按访客隔离：仅归属者可见/可改（对他人一律 404，不暴露存在性）
+	if conv, ok := h.store.GetConversation(id); !ok || conv.OwnerKey != k.Key {
+		writeErr(w, http.StatusNotFound, "conversation not found")
+		return
+	}
 	var req struct {
 		Title  *string `json:"title"`
 		Pinned *bool   `json:"pinned"`
@@ -231,7 +247,7 @@ func (h *Handler) UpdateConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var c models.Conversation
-	ok := true
+	ok = true
 	if req.Title != nil {
 		c, ok = h.store.RenameConversation(id, *req.Title)
 		if !ok {
@@ -251,8 +267,14 @@ func (h *Handler) UpdateConversation(w http.ResponseWriter, r *http.Request) {
 
 // DeleteConversation DELETE /api/conversations/{id} —— 删除会话及其消息
 func (h *Handler) DeleteConversation(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
+		return
+	}
+	// 会话按访客隔离：仅归属者可删
+	if conv, ok := h.store.GetConversation(r.PathValue("id")); !ok || conv.OwnerKey != k.Key {
+		writeErr(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 	if !h.store.DeleteConversation(r.PathValue("id")) {
@@ -264,11 +286,17 @@ func (h *Handler) DeleteConversation(w http.ResponseWriter, r *http.Request) {
 
 // ListMessages GET /api/conversations/{id}/messages
 func (h *Handler) ListMessages(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
 	id := r.PathValue("id")
+	// 会话按访客隔离：仅归属者可读消息
+	if conv, ok := h.store.GetConversation(id); !ok || conv.OwnerKey != k.Key {
+		writeErr(w, http.StatusNotFound, "conversation not found")
+		return
+	}
 	msgs := h.store.ListMessages(id)
 	if msgs == nil {
 		msgs = []models.Message{}
@@ -416,12 +444,14 @@ func (h *Handler) RAGQuery(w http.ResponseWriter, r *http.Request) {
 
 // GetWorkspace GET /api/workspaces/{id}
 func (h *Handler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
 	id := r.PathValue("id")
-	if ws, ok := h.store.GetWorkspace(id); ok {
+	// 工作区按访客隔离：非归属者视为不存在（返回示例树）
+	if ws, ok := h.store.GetWorkspace(id); ok && ws.OwnerKey == k.Key {
 		writeJSON(w, http.StatusOK, ws)
 		return
 	}
@@ -431,7 +461,8 @@ func (h *Handler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
 // CreateWorkspace POST /api/workspaces —— 新建 Agent 任务工作区
 // body: {title?, model?, refs?} ；refs 为要引用的资料库文件 id
 func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireKey(r); !ok {
+	k, ok := h.requireKey(r)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
@@ -449,6 +480,7 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		model = cfgModel(h.cfg)
 	}
 	ws := h.agent.CreateWorkspace(newWSID(), req.Title, model)
+	ws.OwnerKey = k.Key
 
 	// 把引用的资料库文件挂到工作区文件树
 	var refFiles []models.WorkspaceFile
@@ -492,7 +524,7 @@ func (h *Handler) RunWorkspace(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	ws, ok := h.store.GetWorkspace(id)
-	if !ok {
+	if !ok || ws.OwnerKey != k.Key {
 		writeErr(w, http.StatusNotFound, "workspace not found")
 		return
 	}
@@ -548,6 +580,11 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 	// 额度硬校验：用尽即拒绝，给出明确提示（成熟 Agent 的配额边界）
 	if k.Quota > 0 && k.Used >= k.Quota {
 		writeErr(w, http.StatusPaymentRequired, "token 额度已用尽：请联系管理员在后台重置额度后继续对话")
+		return
+	}
+	// 会话归属校验：只能向自己的会话发消息（防跨访客串话）
+	if conv, ok := h.store.GetConversation(r.PathValue("id")); !ok || conv.OwnerKey != k.Key {
+		writeErr(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 

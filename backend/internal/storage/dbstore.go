@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS conversations(
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+-- 会话归属访客 Key（会话按访客隔离）；存量库幂等补列
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS owner_key text NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS messages(
   id text PRIMARY KEY,
   conversation_id text NOT NULL,
@@ -130,10 +132,11 @@ func scanConversation(r []any) models.Conversation {
 		Pinned:    pgpool.ParseBool(pgpool.Str(r[3])),
 		CreatedAt: pgpool.ParseTime(pgpool.Str(r[4])),
 		UpdatedAt: pgpool.ParseTime(pgpool.Str(r[5])),
+		OwnerKey:  pgpool.Str(r[6]),
 	}
 }
 
-const convCols = "id,title,kind,pinned,created_at,updated_at"
+const convCols = "id,title,kind,pinned,created_at,updated_at,owner_key"
 
 // ListConversations 返回会话（pinned 优先，其次 updated_at 倒序）
 func (s *pgStore) ListConversations() []models.Conversation {
@@ -151,9 +154,9 @@ func (s *pgStore) ListConversations() []models.Conversation {
 // AddConversation 新增会话
 func (s *pgStore) AddConversation(c models.Conversation) {
 	_ = s.db.Exec(fmt.Sprintf(
-		"INSERT INTO conversations(id,title,kind,pinned,created_at,updated_at) VALUES(%s,%s,%s,%v,%s,%s) ON CONFLICT(id) DO NOTHING",
+		"INSERT INTO conversations(id,title,kind,pinned,created_at,updated_at,owner_key) VALUES(%s,%s,%s,%v,%s,%s,%s) ON CONFLICT(id) DO NOTHING",
 		pgpool.Quote(c.ID), pgpool.Quote(c.Title), pgpool.Quote(string(c.Kind)),
-		c.Pinned, pgpool.QuoteTime(c.CreatedAt), pgpool.QuoteTime(c.UpdatedAt)))
+		c.Pinned, pgpool.QuoteTime(c.CreatedAt), pgpool.QuoteTime(c.UpdatedAt), pgpool.Quote(c.OwnerKey)))
 }
 
 // RenameConversation 改名；未命中返回 false
@@ -189,6 +192,11 @@ func (s *pgStore) getConversation(id string) (models.Conversation, bool) {
 		return models.Conversation{}, false
 	}
 	return scanConversation(rows[0]), true
+}
+
+// GetConversation 按 ID 取会话（供 api 层做归属校验）
+func (s *pgStore) GetConversation(id string) (models.Conversation, bool) {
+	return s.getConversation(id)
 }
 
 // ---- 消息 ----

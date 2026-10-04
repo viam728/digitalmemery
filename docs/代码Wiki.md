@@ -255,8 +255,8 @@ digitalmemery/
 | GET | `/api/health` | 健康检查（rag/llm provider） |
 | POST | `/api/keys/apply` | 申请临时 Key `{label?, library?}` |
 | GET | `/api/keys/me` | 校验 Key，返回剩余额度 |
-| GET | `/api/conversations` | 会话列表 |
-| POST | `/api/conversations` | 新建会话 `{title}` |
+| GET | `/api/conversations` | 会话列表（按访客 Key 隔离） |
+| POST | `/api/conversations` | 新建会话 `{title}`（归属当前 Key） |
 | PATCH | `/api/conversations/{id}` | 改名 / 置顶 `{title?, pinned?}` |
 | DELETE | `/api/conversations/{id}` | 删除会话及消息 |
 | GET | `/api/conversations/{id}/messages` | 消息列表 |
@@ -337,6 +337,7 @@ digitalmemery/
 ```
 POST /api/conversations/{id}/messages/stream
   ├─ 额度硬校验（402 即停，不落消息）
+  ├─ 会话归属校验（非归属者 404，不暴露存在性）
   ├─ maybeAutoTitle（默认标题 → 首条消息命名，≤18 字）
   ├─ 历史消息 + 本轮用户消息落库
   ├─ RAG.Query(content, top4) + @引用文件正文（截断 6000 字）
@@ -456,7 +457,7 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 
 | # | 现状 | 影响 | 建议 |
 |---|---|---|---|
-| 1 | 会话**全局共享**，未按 Key 隔离 | 不同访客看到同一份会话列表 | 增加 `ownerKey` 维度过滤（M5） |
+| 1 | 文件未按访客隔离（「我分享的」上传件同库可见） | 访客间文件内容可能互见 | 为 `FileMeta` 增加 `ownerKey` 并做访问过滤（M5） |
 | 2 | PDF/DOCX 不做文本抽取 | RAG 仅覆盖 md 版全文；PDF 仅下载 | 接 `ledongthuc/pdf` 或外部解析服务 |
 | 3 | pgpool 不支持 SCRAM & SSL | 连默认配置的 PG14+ 会降级内存 | 补 SCRAM-SHA-256 或文档化 md5 要求（compose 已配 md5） |
 | 4 | SSE 无心跳 | 长连接经代理可能被缓冲/断开 | 增加 `: ping` 注释帧（15s） |
@@ -477,6 +478,11 @@ bash start.sh / start.bat  # 仅本机+局域网启动
 - 优化：RAG 关键词模式**零命中降噪**（存在正命中时过滤零分片段）。
 - 优化：`/api/artifacts` 空结果返回 `[]` 而非 `null`。
 - 新增：本 Code Wiki（`docs/代码Wiki.md`）。
+
+**2026-10-04（第二波）**
+
+- 新增：**访客维度会话/工作区隔离**——`Conversation`/`Workspace` 增加 `OwnerKey`；列表/读写/运行仅限归属者，越权一律 404；PG `conversations` 表幂等新增 `owner_key` 列。
+- 修复：`UpdateConversation` 变量重声明（`ok := true` → `ok = true`）。
 
 **更早**：M0 框架 → M1 对话（SSE/Key 计量/模型选择）→ M2 资料库（上传/预览/入库/RAG）→ M3 Agent 工作区（引用挂载/产物发布/Response details）→ Docker/PG/隧道部署 → 脚本排障（编码/路径/异步引导）。
 
