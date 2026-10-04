@@ -2,11 +2,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
 
 	"jasperlee/backend/internal/api"
 	"jasperlee/backend/internal/config"
@@ -97,11 +102,59 @@ func main() {
 	staticDir := filepath.Join(filepath.Dir(exeDir), "..", "frontend", "dist")
 	mux.Handle("/", serveStatic(staticDir))
 
-	addr := ":" + cfg.Port
-	log.Printf("JasperLee backend listening on %s", addr)
-	if err := http.ListenAndServe(addr, cors(mux)); err != nil {
-		log.Fatalf("server error: %v", err)
+	// 中间件链：recover（防单请求打挂）→ 访问日志 → CORS
+	handler := recoverer(logRequests(cors(mux)))
+
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
+	go func() {
+		log.Printf("JasperLee backend listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	// 优雅关闭：等待中断信号，给在途请求 5s 收尾
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+	log.Println("JasperLee backend shutting down ...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown error: %v", err)
+	}
+}
+
+// recoverer 捕获 panic，避免单个请求把进程打挂。
+func recoverer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[panic] %s %s: %v", r.Method, r.URL.Path, rec)
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"error":"internal error"}`))
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// logRequests 简洁访问日志（仅 /api 与 /mcp，避免静态资源噪声）。
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/mcp" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s (%s)", r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+	})
 }
 
 func cors(next http.Handler) http.Handler {
