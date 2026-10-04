@@ -201,7 +201,17 @@ export async function streamChat(
     headers: jsonHeaders(),
     body: JSON.stringify({ content, refs, mode: opts?.mode ?? 'chat' }),
   })
-  if (!res.ok || !res.body) throw new Error(`stream error ${res.status}`)
+  if (!res.ok || !res.body) {
+    // 后端错误体（如额度用尽）优先展示，便于用户理解原因
+    let detail = `stream error ${res.status}`
+    try {
+      const j = await res.json()
+      if (j?.error) detail = j.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()

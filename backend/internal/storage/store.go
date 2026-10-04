@@ -28,7 +28,7 @@ type memStore struct {
 	files         []models.FileMeta
 	workspaces    map[string]models.Workspace
 	keys          map[string]models.ApiKey // key -> ApiKey
-	inbox         []models.InboxItem      // 招聘者投递的收件箱条目
+	inbox         []models.InboxItem       // 招聘者投递的收件箱条目
 }
 
 // newMemStore 创建内存+JSON降级存储，加载持久化数据；无数据时写入种子数据与演示 Key
@@ -222,7 +222,7 @@ func (s *memStore) MarkArtifact(id string, workspaceID string) (models.FileMeta,
 func (s *memStore) ListArtifacts() []models.FileMeta {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []models.FileMeta
+	out := []models.FileMeta{}
 	for _, f := range s.files {
 		if f.IsArtifact {
 			out = append(out, f)
@@ -393,6 +393,24 @@ func (s *memStore) DeleteInboxOnDisk(it models.InboxItem) error {
 		return nil
 	}
 	return err
+}
+
+// SetInboxReply 更新收件箱条目的自动回复与状态（数字分身自动应答）
+func (s *memStore) SetInboxReply(id, reply, status string) (models.InboxItem, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.inbox {
+		if s.inbox[i].ID == id {
+			s.inbox[i].Status = status
+			if reply != "" {
+				s.inbox[i].Reply = reply
+				s.inbox[i].RepliedAt = time.Now()
+			}
+			s.persist()
+			return s.inbox[i], true
+		}
+	}
+	return models.InboxItem{}, false
 }
 
 // ---- Key 相关 ----

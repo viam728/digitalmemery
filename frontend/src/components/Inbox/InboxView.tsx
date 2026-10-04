@@ -20,6 +20,13 @@ export default function InboxView() {
     refreshInbox()
   }, [refreshInbox])
 
+  // 上传成功后轮询若干次，等待数字分身自动回复（异步生成）
+  const pollReply = () => {
+    for (const ms of [2500, 5000, 9000, 14000, 20000]) {
+      setTimeout(() => refreshInbox(), ms)
+    }
+  }
+
   const doUpload = async () => {
     if (!file) {
       setMsg('请先选择文件')
@@ -28,11 +35,12 @@ export default function InboxView() {
     setBusy(true)
     const ok = await uploadInbox(file, name || '招聘者', note)
     setBusy(false)
-    setMsg(ok ? '已送达收件箱 ✅' : '上传失败，请重试')
+    setMsg(ok ? '已送达收件箱，数字分身正在自动回复 ✅' : '上传失败，请重试')
     if (ok) {
       setFile(null)
       setNote('')
       if (inputRef.current) inputRef.current.value = ''
+      pollReply()
     }
   }
 
@@ -43,7 +51,7 @@ export default function InboxView() {
           <Inbox size={18} className="text-accent" /> 上传给我
         </h1>
         <p className="mt-1 text-[12.5px] text-neutral-500">
-          作为招聘者，你可以把 JD、公司介绍、招聘资料或问题清单上传给我，我会在收件箱看到并尽快回复。
+          作为招聘者，你可以把 JD、公司介绍、招聘资料或问题清单上传给我，数字分身会自动阅读并回复。
         </p>
 
         {/* 上传区 */}
@@ -85,35 +93,56 @@ export default function InboxView() {
         </div>
 
         {/* 收件箱列表 */}
-        <h2 className="mt-8 mb-3 text-[14px] font-medium text-neutral-100">收件箱</h2>
+        <div className="mt-8 mb-3 flex items-center justify-between">
+          <h2 className="text-[14px] font-medium text-neutral-100">收件箱</h2>
+          <button
+            onClick={() => refreshInbox()}
+            className="text-[11.5px] text-neutral-500 hover:text-neutral-200 px-2 py-0.5 rounded hover:bg-white/5"
+          >
+            刷新
+          </button>
+        </div>
         {inbox.length === 0 ? (
           <div className="text-[12.5px] text-neutral-500">暂无投递。</div>
         ) : (
           <div className="space-y-2">
             {inbox.map((it) => (
-              <div key={it.id} className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
-                <FileText size={15} className="text-neutral-500 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-neutral-100 truncate">{it.fileName}</div>
-                  <div className="text-[11px] text-neutral-500">
-                    {it.name || '招聘者'} · {fmtSize(it.size)} · {fmtTime(it.createdAt)}
-                    {it.note && ` · ${it.note}`}
+              <div key={it.id} className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                <div className="flex items-center gap-3">
+                  <FileText size={15} className="text-neutral-500 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] text-neutral-100 truncate">{it.fileName}</div>
+                    <div className="text-[11px] text-neutral-500">
+                      {it.name || '招聘者'} · {fmtSize(it.size)} · {fmtTime(it.createdAt)}
+                      {it.note && ` · ${it.note}`}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => download(it.id)}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-100 hover:bg-white/5 rounded-md"
+                    title="下载"
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    onClick={() => deleteInboxItem(it.id)}
+                    className="p-1.5 text-neutral-400 hover:text-red-400 hover:bg-white/5 rounded-md"
+                    title="删除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => download(it.id)}
-                  className="p-1.5 text-neutral-400 hover:text-neutral-100 hover:bg-white/5 rounded-md"
-                  title="下载"
-                >
-                  <Download size={14} />
-                </button>
-                <button
-                  onClick={() => deleteInboxItem(it.id)}
-                  className="p-1.5 text-neutral-400 hover:text-red-400 hover:bg-white/5 rounded-md"
-                  title="删除"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {/* 数字分身自动应答 */}
+                {it.reply ? (
+                  <div className="mt-2.5 ml-6 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
+                    <div className="text-[11px] text-accent mb-1">数字分身自动回复</div>
+                    <div className="text-[12.5px] text-neutral-300 whitespace-pre-wrap leading-relaxed">{it.reply}</div>
+                  </div>
+                ) : it.status === 'replying' ? (
+                  <div className="mt-2 ml-6 text-[11.5px] text-neutral-500 animate-pulse">数字分身正在阅读并自动回复…</div>
+                ) : it.status === 'failed' ? (
+                  <div className="mt-2 ml-6 text-[11.5px] text-amber-500/80">自动回复生成失败，可直接在对话中向我提问。</div>
+                ) : null}
               </div>
             ))}
           </div>

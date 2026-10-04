@@ -392,6 +392,26 @@ func (m *MemVectorStore) Search(_ context.Context, query string, qv []float32, t
 	}
 	sort.SliceStable(scoredList, func(i, j int) bool { return scoredList[i].sc > scoredList[j].sc })
 
+	// 关键词模式降噪：存在正命中时过滤零命中片段；全零时保底返回（开发模式不至于无结果）
+	if !useVec {
+		hasPositive := false
+		for _, s := range scoredList {
+			if s.sc > 0 {
+				hasPositive = true
+				break
+			}
+		}
+		if hasPositive {
+			filtered := scoredList[:0]
+			for _, s := range scoredList {
+				if s.sc > 0 {
+					filtered = append(filtered, s)
+				}
+			}
+			scoredList = filtered
+		}
+	}
+
 	out := make([]models.RagHit, 0, topK)
 	for _, s := range scoredList {
 		if len(out) >= topK {

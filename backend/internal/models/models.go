@@ -138,7 +138,8 @@ type TimelineItem struct {
 	Text string `json:"text"`
 }
 
-// InboxItem 访客投递到收件箱的条目（招聘者上传 JD / 资料 / 问题清单）
+// InboxItem 访客投递到收件箱的条目（招聘者上传 JD / 资料 / 问题清单）。
+// 数字分身会异步阅读投递内容并生成回复（Status/Reply/RepliedAt），实现「完全自动响应」。
 type InboxItem struct {
 	ID        string    `json:"id"`
 	FileName  string    `json:"fileName"`
@@ -146,6 +147,10 @@ type InboxItem struct {
 	Note      string    `json:"note"` // 留言
 	Size      int64     `json:"size"`
 	CreatedAt time.Time `json:"createdAt"`
+	// Status: pending（待处理）| replying（自动回复中）| replied（已回复）| failed（回复失败）
+	Status    string    `json:"status,omitempty"`
+	Reply     string    `json:"reply,omitempty"`     // 数字分身自动回复正文
+	RepliedAt time.Time `json:"repliedAt,omitempty"` // 回复时间
 }
 
 // ApiKey 访客临时 Key：申请后获得 token 额度与资料库访问权限

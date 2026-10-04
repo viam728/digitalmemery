@@ -39,6 +39,7 @@ type storeImpl interface {
 	ListInbox() []models.InboxItem
 	AddInbox(it models.InboxItem)
 	GetInbox(id string) (models.InboxItem, bool)
+	SetInboxReply(id, reply, status string) (models.InboxItem, bool)
 	DeleteInbox(id string) bool
 	DeleteInboxOnDisk(it models.InboxItem) error
 	GetKey(key string) (models.ApiKey, bool)
@@ -62,23 +63,23 @@ func New(cfg *config.Config) *Store {
 // UsingPostgres 是否走真实 Postgres（供 health / 日志）。
 func (s *Store) UsingPostgres() bool { return s.pg != nil }
 
-func (s *Store) ListConversations() []models.Conversation        { return s.impl.ListConversations() }
-func (s *Store) AddConversation(c models.Conversation)           { s.impl.AddConversation(c) }
+func (s *Store) ListConversations() []models.Conversation { return s.impl.ListConversations() }
+func (s *Store) AddConversation(c models.Conversation)    { s.impl.AddConversation(c) }
 func (s *Store) RenameConversation(id, t string) (models.Conversation, bool) {
 	return s.impl.RenameConversation(id, t)
 }
 func (s *Store) UpdateConversationPinned(id string, p bool) (models.Conversation, bool) {
 	return s.impl.UpdateConversationPinned(id, p)
 }
-func (s *Store) DeleteConversation(id string) bool                { return s.impl.DeleteConversation(id) }
-func (s *Store) ListMessages(id string) []models.Message          { return s.impl.ListMessages(id) }
-func (s *Store) AddMessage(m models.Message)                     { s.impl.AddMessage(m) }
-func (s *Store) ListFiles() []models.FileMeta                    { return s.impl.ListFiles() }
-func (s *Store) MarkIngested(id string) bool                     { return s.impl.MarkIngested(id) }
+func (s *Store) DeleteConversation(id string) bool       { return s.impl.DeleteConversation(id) }
+func (s *Store) ListMessages(id string) []models.Message { return s.impl.ListMessages(id) }
+func (s *Store) AddMessage(m models.Message)             { s.impl.AddMessage(m) }
+func (s *Store) ListFiles() []models.FileMeta            { return s.impl.ListFiles() }
+func (s *Store) MarkIngested(id string) bool             { return s.impl.MarkIngested(id) }
 func (s *Store) MarkArtifact(id, wid string) (models.FileMeta, bool) {
 	return s.impl.MarkArtifact(id, wid)
 }
-func (s *Store) ListArtifacts() []models.FileMeta { return s.impl.ListArtifacts() }
+func (s *Store) ListArtifacts() []models.FileMeta                { return s.impl.ListArtifacts() }
 func (s *Store) AddFile(f models.FileMeta)                       { s.impl.AddFile(f) }
 func (s *Store) GetFile(id string) (models.FileMeta, bool)       { return s.impl.GetFile(id) }
 func (s *Store) ReadBytes(f models.FileMeta) ([]byte, error)     { return s.impl.ReadBytes(f) }
@@ -93,14 +94,17 @@ func (s *Store) ListInbox() []models.InboxItem                   { return s.impl
 func (s *Store) AddInbox(it models.InboxItem)                    { s.impl.AddInbox(it) }
 func (s *Store) GetInbox(id string) (models.InboxItem, bool)     { return s.impl.GetInbox(id) }
 func (s *Store) DeleteInbox(id string) bool                      { return s.impl.DeleteInbox(id) }
-func (s *Store) DeleteInboxOnDisk(it models.InboxItem) error     { return s.impl.DeleteInboxOnDisk(it) }
-func (s *Store) GetKey(key string) (models.ApiKey, bool)         { return s.impl.GetKey(key) }
+func (s *Store) SetInboxReply(id, reply, status string) (models.InboxItem, bool) {
+	return s.impl.SetInboxReply(id, reply, status)
+}
+func (s *Store) DeleteInboxOnDisk(it models.InboxItem) error { return s.impl.DeleteInboxOnDisk(it) }
+func (s *Store) GetKey(key string) (models.ApiKey, bool)     { return s.impl.GetKey(key) }
 func (s *Store) NewKey(label string, q int64, lib bool) models.ApiKey {
 	return s.impl.NewKey(label, q, lib)
 }
-func (s *Store) ListKeys() []models.ApiKey               { return s.impl.ListKeys() }
-func (s *Store) UpdateKey(k models.ApiKey)               { s.impl.UpdateKey(k) }
-func (s *Store) DeleteKey(key string) bool               { return s.impl.DeleteKey(key) }
+func (s *Store) ListKeys() []models.ApiKey { return s.impl.ListKeys() }
+func (s *Store) UpdateKey(k models.ApiKey) { s.impl.UpdateKey(k) }
+func (s *Store) DeleteKey(key string) bool { return s.impl.DeleteKey(key) }
 func (s *Store) ConsumeTokens(key string, t int64) (models.ApiKey, bool) {
 	return s.impl.ConsumeTokens(key, t)
 }

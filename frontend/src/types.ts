@@ -110,6 +110,11 @@ export interface InboxItem {
   note: string
   size: number
   createdAt: string
+  /** 自动应答状态：pending | replying | replied | failed */
+  status?: 'pending' | 'replying' | 'replied' | 'failed'
+  /** 数字分身自动回复正文 */
+  reply?: string
+  repliedAt?: string
 }
 
 // 个人主页（数字分身）

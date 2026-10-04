@@ -478,6 +478,11 @@ func (h *Handler) RunWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
+	// 额度硬校验：与对话一致，用尽即拒绝
+	if k.Quota > 0 && k.Used >= k.Quota {
+		writeErr(w, http.StatusPaymentRequired, "token 额度已用尽：请联系管理员在后台重置额度后继续")
+		return
+	}
 	id := r.PathValue("id")
 	var req struct {
 		Prompt string `json:"prompt"`
@@ -540,6 +545,11 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "a valid key is required")
 		return
 	}
+	// 额度硬校验：用尽即拒绝，给出明确提示（成熟 Agent 的配额边界）
+	if k.Quota > 0 && k.Used >= k.Quota {
+		writeErr(w, http.StatusPaymentRequired, "token 额度已用尽：请联系管理员在后台重置额度后继续对话")
+		return
+	}
 
 	var req struct {
 		Content string   `json:"content"`
@@ -555,6 +565,8 @@ func (h *Handler) StreamChat(w http.ResponseWriter, r *http.Request) {
 	if mode != "agent" {
 		mode = "chat"
 	}
+	// 自动命名：默认标题（空/新对话）时用首条消息命名
+	h.maybeAutoTitle(cid, req.Content)
 
 	// 构造对话上下文：历史 + 本轮 + RAG 命中
 	msgs := h.store.ListMessages(cid)
@@ -712,6 +724,28 @@ func newID() string {
 
 func newWSID() string {
 	return "ws-" + time.Now().Format("150405.000000000")
+}
+
+// maybeAutoTitle 会话若仍为默认标题（空 / “新对话”），用当前消息自动命名。
+// 成熟 Agent 体验：对话不再是一排“新对话”，而是自动整理成有意义的标题。
+func (h *Handler) maybeAutoTitle(cid, content string) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return
+	}
+	for _, c := range h.store.ListConversations() {
+		if c.ID != cid {
+			continue
+		}
+		if c.Title == "" || c.Title == "新对话" {
+			runes := []rune(content)
+			if len(runes) > 18 {
+				runes = runes[:18]
+			}
+			h.store.RenameConversation(cid, string(runes))
+		}
+		return
+	}
 }
 
 // inferKind 按扩展名推断文件 kind

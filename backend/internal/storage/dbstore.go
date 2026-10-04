@@ -481,6 +481,21 @@ func (s *pgStore) DeleteInboxOnDisk(it models.InboxItem) error {
 	return err
 }
 
+// SetInboxReply 更新收件箱条目的自动回复与状态（数字分身自动应答）
+func (s *pgStore) SetInboxReply(id, reply, status string) (models.InboxItem, bool) {
+	it, ok := s.GetInbox(id)
+	if !ok {
+		return models.InboxItem{}, false
+	}
+	it.Status = status
+	if reply != "" {
+		it.Reply = reply
+		it.RepliedAt = time.Now()
+	}
+	s.AddInbox(it)
+	return it, true
+}
+
 // ---- Key ----
 
 func scanKey(r []any) models.ApiKey {

@@ -4,7 +4,7 @@
 1. **看个人主页**（简历/技能/项目作品/时间线）；
 2. **与分身问答**（分身基于「关于我」知识库 RAG 回答，流式输出）；
 3. **浏览资料库**（个人作品文档，支持预览/入库/检索）；
-4. **上传文件给我**（JD/招聘资料/问题清单，落入收件箱）。
+4. **上传文件给我**（JD/招聘资料/问题清单，落入收件箱，数字分身自动阅读并回复）。
 
 技术栈：React + Go + Agent，参照 Codex / Cherry Studio 交互范式（深色三栏布局，左导航 + 中主区 + 右上下文/引用面板）。
 
@@ -19,6 +19,12 @@ digitalmemery/
 └─ backend/                # Go 1.26 标准库 net/http
    └─ internal/{api,storage,rag,agent,config,models}
 ```
+
+## 文档
+
+- [Code Wiki](docs/代码Wiki.md) —— 架构 / 模块 / API / 数据流 / 扩展指南（速查手册）
+- [产品需求书](docs/需求书.md)
+- [脚本排障记录](docs/脚本排障记录.md)
 
 ## 启动
 
@@ -106,11 +112,12 @@ docker compose down -v     # 停止并清空数据卷
 通过 `EmbeddingProvider` / `VectorStore` 接口可插拔切换，默认 `mock` 即开即用。
 
 ## 里程碑
-- [x] M0 框架：前后端跑通，三视图 + 右栏文件树（本期）
+- [x] M0 框架：前后端跑通，三视图 + 右栏文件树
 - [x] M1 对话：流式 SSE + Key 计量 + 模型选择器
-- [x] M2 资料库：列表/入库 + RAG 检索（上传/Office 预览待做）
-- [ ] M3 Agent：任务编排 + 引用挂载 + Response details
-- [ ] M4 数字分身：记忆/人设 + RAG 记忆检索
+- [x] M2 资料库：列表/入库 + RAG 检索
+- [x] M3 Agent：任务编排 + 引用挂载 + Response details
+- [x] M4 数字分身 v1：人设/SKILL + RAG 引导 + 收件箱自动应答 + 会话自动命名
+- [ ] M5 记忆增强：访客维度会话隔离、PDF/DOCX 文本抽取、SSE 心跳（规划中）
 
 ## 端到端网络部署（开源内网穿透）
 不买服务器，用开源隧道把本机服务暴露到公网（cloudflared 优先，localtunnel 兜底）：

@@ -25,6 +25,9 @@ data/inbox/*
 *.log
 /tmp/
 
+# ---- 自动化工作临时目录（临时产物，不入库）----
+.cowork-temp/
+
 # ---- 个人简历 PDF（含电话/邮箱，勿公开提交）----
 data/uploads/*.pdf
 
