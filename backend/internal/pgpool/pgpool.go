@@ -5,12 +5,13 @@
 //
 // 支持能力（覆盖本项目所需）：
 //   - 启动握手（StartupMessage, 协议 3.0）
-//   - 登录认证：AuthenticationOk / Cleartext / MD5（PostgreSQL 常用 md5 认证）
+//   - 登录认证：AuthenticationOk / Cleartext / MD5 / SASL SCRAM-SHA-256（PostgreSQL 13+ 默认）
 //   - 简单查询（Simple Query 'Q'）与结果扫描（RowDescription / DataRow）
 //   - 文本协议结果：每个字段以其文本形式返回（NULL 返回 nil）
+//   - 多语句单次执行（BEGIN; …; COMMIT;）用于小体量全量同步
 //   - 语句字段注入：用单引号转义（本项目所有值均由应用自身控制，无外部输入拼接）
 //
-// 不实现：SSL/TLS、扩展查询协议、COPY、事务游标等高级特性（本项目用不到）。
+// 不实现：SSL/TLS、扩展查询协议、COPY、事务游标、SCRAM channel binding 等高级特性（本项目用不到）。
 package pgpool
 
 import (
@@ -29,8 +30,9 @@ import (
 // Conn 一个 Postgres 连接。方法在内部串行化（单连接 + 互斥锁），
 // 适合数据量小、单机低并发的数字分身应用。
 type Conn struct {
-	mu   sync.Mutex
-	conn net.Conn
+	mu    sync.Mutex
+	conn  net.Conn
+	scram *scramClient // SCRAM 认证过程中的客户端状态
 }
 
 // Config Postgres 连接配置（可用 DATABASE_URL 或 PGHOST 等环境变量解析）。
@@ -124,6 +126,34 @@ func (c *Conn) startup(cfg *Config) error {
 				if err := c.sendPassword(md5Response(cfg.User, cfg.Password, salt)); err != nil {
 					return err
 				}
+			case 10: // AuthenticationSASL（SCRAM-SHA-256 等）
+				mechs := parseMechanisms(payload[4:])
+				if !containsStr(mechs, "SCRAM-SHA-256") {
+					return fmt.Errorf("pgpool: 服务端 SASL 机制不受支持: %v", mechs)
+				}
+				c.scram = &scramClient{user: cfg.User, password: cfg.Password}
+				first := c.scram.clientFirst()
+				if err := c.sendSASLInitial("SCRAM-SHA-256", []byte(first)); err != nil {
+					return err
+				}
+			case 11: // AuthenticationSASLContinue
+				if c.scram == nil {
+					return fmt.Errorf("pgpool: 意外的 SASLContinue")
+				}
+				final, err := c.scram.handleServerFirst(string(payload[4:]))
+				if err != nil {
+					return err
+				}
+				if err := c.sendSASLResponse([]byte(final)); err != nil {
+					return err
+				}
+			case 12: // AuthenticationSASLFinal
+				if c.scram == nil {
+					return fmt.Errorf("pgpool: 意外的 SASLFinal")
+				}
+				if err := c.scram.verifyServerFinal(string(payload[4:])); err != nil {
+					return err
+				}
 			default:
 				return fmt.Errorf("pgpool: unsupported auth method %d", code)
 			}
@@ -190,6 +220,7 @@ func (c *Conn) ExecCount(sql string) (int64, error) {
 
 // Query 执行查询并返回所有行。每行为一个 []any，非 NULL 的字段为 string 文本，
 // NULL 字段为 nil。（简单查询协议返回的是文本格式结果。）
+// 支持多语句（如 "BEGIN; …; COMMIT;"），直到 ReadyForQuery 才返回。
 func (c *Conn) Query(sql string) ([][]any, error) {
 	return c.query(sql)
 }
@@ -294,8 +325,10 @@ func parseError(payload []byte) string {
 // ---- 底层消息读写 ----
 
 func (c *Conn) writeMsg(mtype byte, payload []byte) error {
-	pkt := appendInt32(nil, int32(len(payload)+4))
+	// PostgreSQL 消息帧：[type byte][int32 长度(含长度字段自身)][payload]
+	pkt := make([]byte, 0, 5+len(payload))
 	pkt = append(pkt, byte(mtype))
+	pkt = appendInt32(pkt, int32(len(payload)+4))
 	pkt = append(pkt, payload...)
 	return c.writeRaw(pkt)
 }
